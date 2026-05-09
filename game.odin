@@ -31,13 +31,22 @@ Handle :: hm.Handle32
 E_Type :: enum {
 	None,
 	Player,
+	Ground,
+}
+
+E_Flag :: enum u16 {
+	None,
+	Dynamic,
+	Static,
 }
 
 Entity :: struct {
-	handle: Handle,
-	type:   E_Type,
-	pos:    v2,
-	vel:    v2,
+	handle:		 Handle,
+	type:   	 E_Type,
+	flags:		 bit_set[E_Flag],
+	pos:    	 v2,
+	vel:   		 v2,
+	is_grounded: bool
 }
 
 MAX_ENTITIES :: 256
@@ -65,6 +74,20 @@ init :: proc() {
 
 	player_handle = hm.add(&entities, Entity{type = .Player})
 	player := hm.get(&entities, player_handle)
+	player.flags += {.Dynamic}
+
+	floorTileHeight : i32 = 1
+	floorTileWidth : i32 = 600 / TILE_SIDE_IN_PIXELS * 2
+	floorOffset : f32 = 200
+
+	for y in 0..<floorTileHeight {
+		for x in 0..<floorTileWidth {
+			groundTile_handle := hm.add(&entities, Entity{type = .Ground})
+			groundTile := hm.get(&entities, groundTile_handle)
+			groundTile.pos = { f32(x * TILE_SIDE_IN_PIXELS) - floorOffset, f32(y * TILE_SIDE_IN_PIXELS) + floorOffset }
+			groundTile.flags += {.Static}
+		}
+	}
 
 	camera = k2.Camera {
 		zoom = 1,
@@ -79,7 +102,7 @@ step :: proc() -> bool {
 		return false
 	}
 
-	dt := k2.get_frame_time()
+	dt := k2.get_frame_time() * 0.1
 	player := hm.get(&entities, player_handle)
 	half_side := f32(TILE_SIDE_IN_PIXELS / 2)
 
@@ -90,23 +113,68 @@ step :: proc() -> bool {
 		player.pos += input_direction()
 	}
 
+	k2.clear(k2.BLACK)
 	physics: {
+		playerRect : k2.Rect
+		playerRect.w = f32(TILE_SIDE_IN_PIXELS)
+		playerRect.h = f32(TILE_SIDE_IN_PIXELS)
+		playerRect.x = player.pos.x
+		playerRect.y = player.pos.y
+		k2.draw_rect(playerRect, k2.GREEN)
+
 		entities_it := hm.iterator_make(&entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(entities, handle))
-			entity.vel += {0, 1 * dt}
-			entity.pos += entity.vel
+
+			if .Static in entity.flags {
+				groundRect : k2.Rect
+				groundRect.w = f32(TILE_SIDE_IN_PIXELS)
+				groundRect.h = f32(TILE_SIDE_IN_PIXELS)
+				groundRect.x = entity.pos.x - half_side
+				groundRect.y = entity.pos.y - half_side
+
+				player.is_grounded = k2.rect_overlapping(playerRect, groundRect)
+
+				if player.is_grounded {
+					k2.draw_rect(groundRect, k2.RED)
+				}
+				else {
+					k2.draw_rect(groundRect, k2.BLUE)
+				}
+			}
+
+			if .Dynamic in entity.flags {
+
+				if player.is_grounded {
+					entity.vel = {0, 0}
+					fmt.println("Is Grounded!")
+				}
+				else {
+					entity.vel += {0, 1 * dt}
+				}
+
+				entity.pos += entity.vel
+			}
 		}
 	}
 
 	render: {
-		k2.clear(k2.BLACK)
+		//k2.clear(k2.BLACK)
 		camera.target = player.pos + {-600 / 2, -480 / 2}
 		k2.set_camera(camera)
 		k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
 
 		bobr_r := k2.get_texture_rect(sprites[.bobr].tex)
+		ground_r := k2.get_texture_rect(sprites[.ground].tex)
 		k2.draw_texture_rect(sprites[.bobr].tex, bobr_r, player.pos, half_side, 0)
+
+		entities_it := hm.iterator_make(&entities)
+		for entity, handle in hm.iterate(&entities_it) {
+			assert(hm.is_valid(entities, handle))
+			if entity.type == .Ground {
+				//k2.draw_texture_rect(sprites[.ground].tex, ground_r, entity.pos, half_side, 0)
+			}
+		}
 
 		k2.present()
 	}
