@@ -1,6 +1,8 @@
 package game
 
 import hm "core:container/handle_map"
+import "core:fmt"
+import "core:math/linalg"
 import k2 "karl2d"
 
 v2 :: k2.Vec2
@@ -65,7 +67,11 @@ step :: proc() -> bool {
 	player := hm.get(&entities, player_handle)
 	half_side := f32(TILE_SIDE_IN_PIXELS / 2)
 
+	ai: {
+	}
+
 	input: {
+		player.pos += input_direction()
 	}
 
 	physics: {
@@ -86,6 +92,29 @@ step :: proc() -> bool {
 	return true
 }
 
+input_direction :: proc() -> v2 {
+	dir: v2
+	if k2.key_is_held(.W) || k2.key_is_held(.Up) || k2.gamepad_button_is_held(0, .Left_Face_Up) {
+		dir.y = -1
+	}
+	if k2.key_is_held(.S) ||
+	   k2.key_is_held(.Down) ||
+	   k2.gamepad_button_is_held(0, .Left_Face_Down) {
+		dir.y = 1
+	}
+	if k2.key_is_held(.A) ||
+	   k2.key_is_held(.Left) ||
+	   k2.gamepad_button_is_held(0, .Left_Face_Left) {
+		dir.x = -1
+	}
+	if k2.key_is_held(.D) ||
+	   k2.key_is_held(.Right) ||
+	   k2.gamepad_button_is_held(0, .Left_Face_Right) {
+		dir.x = 1
+	}
+
+	return linalg.normalize0(dir)
+}
 
 shutdown :: proc() {
 	k2.shutdown()
