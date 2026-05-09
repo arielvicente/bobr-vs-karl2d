@@ -30,6 +30,8 @@ entities: hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle)
 
 player_handle: Handle
 
+bobr_tex: k2.Texture
+
 main :: proc() {
 	init()
 	for step() {}
@@ -40,6 +42,8 @@ init :: proc() {
 	//.Windowed
 	//.Borderless_Fullscreen
 	k2.init(600, 480, "bobr", options = {window_mode = .Windowed})
+
+	bobr_tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 
 	player_handle = hm.add(&entities, Entity{type = .Player})
 	player := hm.get(&entities, player_handle)
@@ -73,12 +77,8 @@ step :: proc() -> bool {
 		k2.set_camera(camera)
 		k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
 
-		k2.draw_rect(
-			{player.pos.x, player.pos.y, f32(TILE_SIDE_IN_PIXELS), f32(TILE_SIDE_IN_PIXELS)},
-			k2.LIGHT_PURPLE,
-			{half_side, half_side},
-			0,
-		)
+		bobr_r := k2.get_texture_rect(bobr_tex)
+		k2.draw_texture_rect(bobr_tex, bobr_r, player.pos, half_side, 0)
 
 		k2.present()
 	}
