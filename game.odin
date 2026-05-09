@@ -14,6 +14,18 @@ TILE_SIDE_IN_METERS: f32 : 1
 METERS_TO_PIXELS: f32 : f32(TILE_SIDE_IN_PIXELS) / TILE_SIDE_IN_METERS
 PIXELS_TO_METERS: f32 : TILE_SIDE_IN_METERS / f32(TILE_SIDE_IN_PIXELS)
 
+Sprite_Name :: enum {
+	bobr,
+	ground,
+}
+
+Sprite :: struct {
+	tex:  k2.Texture,
+	w, h: f32,
+}
+
+sprites: [Sprite_Name]Sprite
+
 Handle :: hm.Handle32
 
 E_Type :: enum {
@@ -25,15 +37,13 @@ Entity :: struct {
 	handle: Handle,
 	type:   E_Type,
 	pos:    v2,
-	vel:	v2,
+	vel:    v2,
 }
 
 MAX_ENTITIES :: 256
 entities: hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle)
 
 player_handle: Handle
-
-bobr_tex: k2.Texture
 
 main :: proc() {
 	init()
@@ -46,7 +56,12 @@ init :: proc() {
 	//.Borderless_Fullscreen
 	k2.init(600, 480, "bobr", options = {window_mode = .Windowed})
 
-	bobr_tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
+	sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
+	sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
+	sprites[.bobr].h = f32(TILE_SIDE_IN_PIXELS)
+	sprites[.ground].tex = k2.load_texture_from_bytes(#load("data/sprites/ground.png"))
+	sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
+	sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
 
 	player_handle = hm.add(&entities, Entity{type = .Player})
 	player := hm.get(&entities, player_handle)
@@ -79,7 +94,7 @@ step :: proc() -> bool {
 		entities_it := hm.iterator_make(&entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(entities, handle))
-			entity.vel += { 0, 1 * dt}
+			entity.vel += {0, 1 * dt}
 			entity.pos += entity.vel
 		}
 	}
@@ -90,8 +105,8 @@ step :: proc() -> bool {
 		k2.set_camera(camera)
 		k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
 
-		bobr_r := k2.get_texture_rect(bobr_tex)
-		k2.draw_texture_rect(bobr_tex, bobr_r, player.pos, half_side, 0)
+		bobr_r := k2.get_texture_rect(sprites[.bobr].tex)
+		k2.draw_texture_rect(sprites[.bobr].tex, bobr_r, player.pos, half_side, 0)
 
 		k2.present()
 	}
