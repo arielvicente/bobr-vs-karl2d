@@ -25,6 +25,7 @@ Entity :: struct {
 	handle: Handle,
 	type:   E_Type,
 	pos:    v2,
+	vel:	v2,
 }
 
 MAX_ENTITIES :: 256
@@ -51,7 +52,7 @@ init :: proc() {
 	player := hm.get(&entities, player_handle)
 
 	camera = k2.Camera {
-		zoom = 4,
+		zoom = 1,
 	}
 }
 
@@ -75,6 +76,12 @@ step :: proc() -> bool {
 	}
 
 	physics: {
+		entities_it := hm.iterator_make(&entities)
+		for entity, handle in hm.iterate(&entities_it) {
+			assert(hm.is_valid(entities, handle))
+			entity.vel += { 0, 1 * dt}
+			entity.pos += entity.vel
+		}
 	}
 
 	render: {
