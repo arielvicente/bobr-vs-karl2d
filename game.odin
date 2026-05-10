@@ -3,6 +3,7 @@ package game
 import hm "core:container/handle_map"
 import "core:fmt"
 import "core:math/linalg"
+import "core:mem"
 import k2 "karl2d"
 
 v2 :: k2.Vec2
@@ -56,26 +57,21 @@ entities: hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle)
 player_handle: Handle
 
 main :: proc() {
-	when ODIN_DEBUG {
-		track: mem.Tracking_Allocator
-		mem.tracking_allocator_init(&track, context.allocator)
-		context.allocator = mem.tracking_allocator(&track)
-
-		defer (report_mem_leaks(&track))
-
-		report_mem_leaks :: proc(track: ^mem.Tracking_Allocator) {
-			if len(track.allocation_map) > 0 {
-				for _, entry in track.allocation_map {
-					fmt.eprintf("%v leaked %v bytes\n", entry.location, entry.size)
-				}
-			}
-			mem.tracking_allocator_destroy(track)
-		}
-	}
+	track: mem.Tracking_Allocator
+	mem.tracking_allocator_init(&track, context.allocator)
+	context.allocator = mem.tracking_allocator(&track)
 
 	init()
 	for step() {}
 	shutdown()
+
+	if len(track.allocation_map) > 0 {
+		fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
+		for _, entry in track.allocation_map {
+			fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+		}
+	}
+	mem.tracking_allocator_destroy(&track)
 }
 
 init :: proc() {
