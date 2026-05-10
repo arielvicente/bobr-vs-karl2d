@@ -41,12 +41,13 @@ E_Flag :: enum u16 {
 }
 
 Entity :: struct {
-	handle:		 Handle,
-	type:   	 E_Type,
-	flags:		 bit_set[E_Flag],
-	pos:    	 v2,
-	vel:   		 v2,
-	is_grounded: bool
+	handle:      Handle,
+	type:        E_Type,
+	flags:       bit_set[E_Flag],
+	pos:         v2,
+	vel:         v2,
+	speed:       f32,
+	is_grounded: bool,
 }
 
 MAX_ENTITIES :: 256
@@ -75,17 +76,21 @@ init :: proc() {
 	player_handle = hm.add(&entities, Entity{type = .Player})
 	player := hm.get(&entities, player_handle)
 	player.flags += {.Dynamic}
+	player.speed = 20
 
-	floorTileHeight : i32 = 1
-	floorTileWidth : i32 = 600 / TILE_SIDE_IN_PIXELS * 2
-	floorOffset : f32 = 200
+	floor_tile_height: i32 = 1
+	floor_tile_width: i32 = 600 / TILE_SIDE_IN_PIXELS * 2
+	floor_offset: f32 = 200
 
-	for y in 0..<floorTileHeight {
-		for x in 0..<floorTileWidth {
-			groundTile_handle := hm.add(&entities, Entity{type = .Ground})
-			groundTile := hm.get(&entities, groundTile_handle)
-			groundTile.pos = { f32(x * TILE_SIDE_IN_PIXELS) - floorOffset, f32(y * TILE_SIDE_IN_PIXELS) + floorOffset }
-			groundTile.flags += {.Static}
+	for y in 0 ..< floor_tile_height {
+		for x in 0 ..< floor_tile_width {
+			ground_tile_handle := hm.add(&entities, Entity{type = .Ground})
+			ground_tile := hm.get(&entities, ground_tile_handle)
+			ground_tile.pos = {
+				f32(x * TILE_SIDE_IN_PIXELS) - floor_offset,
+				f32(y * TILE_SIDE_IN_PIXELS) + floor_offset,
+			}
+			ground_tile.flags += {.Static}
 		}
 	}
 
@@ -102,7 +107,7 @@ step :: proc() -> bool {
 		return false
 	}
 
-	dt := k2.get_frame_time() * 0.1
+	dt := k2.get_frame_time()
 	player := hm.get(&entities, player_handle)
 	half_side := f32(TILE_SIDE_IN_PIXELS / 2)
 
@@ -110,56 +115,52 @@ step :: proc() -> bool {
 	}
 
 	input: {
-		player.pos += input_direction()
+		player.vel += input_direction()
 	}
 
-	k2.clear(k2.BLACK)
 	physics: {
-		playerRect : k2.Rect
-		playerRect.w = f32(TILE_SIDE_IN_PIXELS)
-		playerRect.h = f32(TILE_SIDE_IN_PIXELS)
-		playerRect.x = player.pos.x
-		playerRect.y = player.pos.y
-		k2.draw_rect(playerRect, k2.GREEN)
+		player_rect: k2.Rect
+		player_rect.w = f32(TILE_SIDE_IN_PIXELS)
+		player_rect.h = f32(TILE_SIDE_IN_PIXELS)
+		player_rect.x = player.pos.x - half_side
+		player_rect.y = player.pos.y - half_side
+
+		player.is_grounded = false
 
 		entities_it := hm.iterator_make(&entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(entities, handle))
 
 			if .Static in entity.flags {
-				groundRect : k2.Rect
-				groundRect.w = f32(TILE_SIDE_IN_PIXELS)
-				groundRect.h = f32(TILE_SIDE_IN_PIXELS)
-				groundRect.x = entity.pos.x - half_side
-				groundRect.y = entity.pos.y - half_side
+				ground_rect: k2.Rect
+				ground_rect.w = f32(TILE_SIDE_IN_PIXELS)
+				ground_rect.h = f32(TILE_SIDE_IN_PIXELS)
+				ground_rect.x = entity.pos.x - half_side
+				ground_rect.y = entity.pos.y - half_side
 
-				player.is_grounded = k2.rect_overlapping(playerRect, groundRect)
-
-				if player.is_grounded {
-					k2.draw_rect(groundRect, k2.RED)
+				collided := k2.rect_overlapping(player_rect, ground_rect)
+				if collided {
+					player.is_grounded = true
+					overlap_rect, _ := k2.rect_overlap(player_rect, ground_rect)
+					player.pos.y -= overlap_rect.h / 2
+					break
 				}
-				else {
-					k2.draw_rect(groundRect, k2.BLUE)
-				}
-			}
-
-			if .Dynamic in entity.flags {
-
-				if player.is_grounded {
-					entity.vel = {0, 0}
-					fmt.println("Is Grounded!")
-				}
-				else {
-					entity.vel += {0, 1 * dt}
-				}
-
-				entity.pos += entity.vel
 			}
 		}
+
+
+		if player.is_grounded {
+			player.vel.y = 0
+			player.vel.x *= 0.9 // friction
+		} else {
+			player.vel.y += 1 // gravity
+		}
+
+		player.pos += player.vel * player.speed * dt
 	}
 
 	render: {
-		//k2.clear(k2.BLACK)
+		k2.clear(k2.BLACK)
 		camera.target = player.pos + {-600 / 2, -480 / 2}
 		k2.set_camera(camera)
 		k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
@@ -172,7 +173,7 @@ step :: proc() -> bool {
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(entities, handle))
 			if entity.type == .Ground {
-				//k2.draw_texture_rect(sprites[.ground].tex, ground_r, entity.pos, half_side, 0)
+				k2.draw_texture_rect(sprites[.ground].tex, ground_r, entity.pos, half_side, 0)
 			}
 		}
 
