@@ -56,6 +56,23 @@ entities: hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle)
 player_handle: Handle
 
 main :: proc() {
+	when ODIN_DEBUG {
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		defer (report_mem_leaks(&track))
+
+		report_mem_leaks :: proc(track: ^mem.Tracking_Allocator) {
+			if len(track.allocation_map) > 0 {
+				for _, entry in track.allocation_map {
+					fmt.eprintf("%v leaked %v bytes\n", entry.location, entry.size)
+				}
+			}
+			mem.tracking_allocator_destroy(track)
+		}
+	}
+
 	init()
 	for step() {}
 	shutdown()
@@ -100,6 +117,8 @@ init :: proc() {
 }
 
 step :: proc() -> bool {
+	free_all(context.temp_allocator)
+
 	if !k2.update() {
 		return false
 	}
@@ -137,6 +156,11 @@ step :: proc() -> bool {
 				ground_rect.h = f32(TILE_SIDE_IN_PIXELS)
 				ground_rect.x = entity.pos.x - half_side
 				ground_rect.y = entity.pos.y - half_side
+
+				/*
+				** TODO: for every collision, add a collision object to a collission array
+				** and handle collision response in a separate loop :)
+				*/
 
 				collided := k2.rect_overlapping(player_rect, ground_rect)
 				if collided {
