@@ -3,6 +3,7 @@ package game
 import hm "core:container/handle_map"
 import "core:fmt"
 import "core:math/linalg"
+import "core:math"
 import "core:mem"
 import k2 "karl2d"
 
@@ -131,6 +132,9 @@ step :: proc() -> bool {
 
 	input: {
 		player.vel += input_direction()
+		if input_jump() && player.is_grounded {
+			player.vel.y -= 20
+		}
 	}
 
 	physics: {
@@ -170,7 +174,7 @@ step :: proc() -> bool {
 
 
 		if player.is_grounded {
-			player.vel.y = 0
+			player.vel.y = math.min(0, player.vel.y)
 			player.vel.x *= 0.9 // friction
 		} else {
 			player.vel.y += 1 // gravity
@@ -225,6 +229,11 @@ input_direction :: proc() -> v2 {
 	}
 
 	return linalg.normalize0(dir)
+}
+
+input_jump :: proc() -> bool {
+	result := k2.key_went_down(.Space) || k2.gamepad_button_went_down(0, .Right_Face_Down)
+	return result
 }
 
 shutdown :: proc() {
