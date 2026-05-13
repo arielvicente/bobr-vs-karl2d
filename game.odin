@@ -28,8 +28,6 @@ Sprite :: struct {
 
 sprites: [Sprite_Name]Sprite
 
-Handle :: hm.Handle32
-
 E_Type :: enum {
 	None,
 	Player,
@@ -53,26 +51,39 @@ Entity :: struct {
 }
 
 MAX_ENTITIES :: 256
-entities: hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle)
 
-player_handle: Handle
+Handle :: hm.Handle32
+
+Game_Memory :: struct {
+	game_running: bool,
+	sprites: [Sprite_Name]Sprite,
+	entities: hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle),
+	player_handle: Handle,
+}
+
+g: ^Game_Memory
 
 main :: proc() {
 	track: mem.Tracking_Allocator
 	mem.tracking_allocator_init(&track, context.allocator)
 	context.allocator = mem.tracking_allocator(&track)
+	defer {
+		if len(track.allocation_map) > 0 {
+			fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
+			for _, entry in track.allocation_map {
+				fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+			}
+		}
+		mem.tracking_allocator_destroy(&track)
+	}
+
+	g = new(Game_Memory)
+	defer free(g)
 
 	init()
 	for step() {}
 	shutdown()
 
-	if len(track.allocation_map) > 0 {
-		fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
-		for _, entry in track.allocation_map {
-			fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
-		}
-	}
-	mem.tracking_allocator_destroy(&track)
 }
 
 init :: proc() {
@@ -80,17 +91,14 @@ init :: proc() {
 	//.Borderless_Fullscreen
 	k2.init(600, 480, "bobr", options = {window_mode = .Windowed})
 
-	sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
-	sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
-	sprites[.bobr].h = f32(TILE_SIDE_IN_PIXELS)
-	sprites[.ground].tex = k2.load_texture_from_bytes(#load("data/sprites/ground.png"))
-	sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
-	sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
+	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.bobr].h = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.ground].tex = k2.load_texture_from_bytes(#load("data/sprites/ground.png"))
+	g.sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
 
-	player_handle = hm.add(&entities, Entity{type = .Player})
-	player := hm.get(&entities, player_handle)
-	player.flags += {.Dynamic}
-	player.speed = 20
+	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 20})
 
 	floor_tile_height: i32 = 1
 	floor_tile_width: i32 = 600 / TILE_SIDE_IN_PIXELS * 2
@@ -98,13 +106,14 @@ init :: proc() {
 
 	for y in 0 ..< floor_tile_height {
 		for x in 0 ..< floor_tile_width {
-			ground_tile_handle := hm.add(&entities, Entity{type = .Ground})
-			ground_tile := hm.get(&entities, ground_tile_handle)
-			ground_tile.pos = {
-				f32(x * TILE_SIDE_IN_PIXELS) - floor_offset,
-				f32(y * TILE_SIDE_IN_PIXELS) + floor_offset,
-			}
-			ground_tile.flags += {.Static}
+			_ = hm.add(&g.entities,
+				Entity{type = .Ground,
+					pos = {
+						f32(x * TILE_SIDE_IN_PIXELS) - floor_offset,
+						f32(y * TILE_SIDE_IN_PIXELS) + floor_offset,
+					}, 
+					flags = {.Static}
+				})
 		}
 	}
 
@@ -124,7 +133,7 @@ step :: proc() -> bool {
 	}
 
 	dt := k2.get_frame_time()
-	player := hm.get(&entities, player_handle)
+	player := hm.get(&g.entities, g.player_handle)
 	half_side := f32(TILE_SIDE_IN_PIXELS / 2)
 
 	ai: {
@@ -146,9 +155,9 @@ step :: proc() -> bool {
 
 		player.is_grounded = false
 
-		entities_it := hm.iterator_make(&entities)
+		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
-			assert(hm.is_valid(entities, handle))
+			assert(hm.is_valid(g.entities, handle))
 
 			if .Static in entity.flags {
 				ground_rect: k2.Rect
@@ -189,15 +198,15 @@ step :: proc() -> bool {
 		k2.set_camera(camera)
 		k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
 
-		bobr_r := k2.get_texture_rect(sprites[.bobr].tex)
-		ground_r := k2.get_texture_rect(sprites[.ground].tex)
-		k2.draw_texture_rect(sprites[.bobr].tex, bobr_r, player.pos, half_side, 0)
+		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
+		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
+		k2.draw_texture_rect(g.sprites[.bobr].tex, bobr_r, player.pos, half_side, 0)
 
-		entities_it := hm.iterator_make(&entities)
+		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
-			assert(hm.is_valid(entities, handle))
+			assert(hm.is_valid(g.entities, handle))
 			if entity.type == .Ground {
-				k2.draw_texture_rect(sprites[.ground].tex, ground_r, entity.pos, half_side, 0)
+				k2.draw_texture_rect(g.sprites[.ground].tex, ground_r, entity.pos, half_side, 0)
 			}
 		}
 
