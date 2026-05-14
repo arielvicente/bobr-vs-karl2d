@@ -90,6 +90,7 @@ main :: proc() {
 
 init :: proc() {
 	//.Windowed
+	//.Windowed_Resizable
 	//.Borderless_Fullscreen
 	k2.init(600, 480, "bobr", options = {window_mode = .Windowed})
 
@@ -241,6 +242,9 @@ step :: proc() -> bool {
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
 
 		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
+		if player.vel.x > 0 {
+			bobr_r.w *= -1
+		}
 		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
 		k2.draw_texture_rect(g.sprites[.bobr].tex, bobr_r, player.pos * METERS_TO_PIXELS, half_side * METERS_TO_PIXELS, 0)
 
