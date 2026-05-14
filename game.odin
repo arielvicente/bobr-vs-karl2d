@@ -1,10 +1,12 @@
 package game
 
 import hm "core:container/handle_map"
+import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:mem"
+import "core:os"
 import k2 "karl2d"
 
 v2 :: k2.Vec2
@@ -100,21 +102,45 @@ init :: proc() {
 
 	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5})
 
-	floor_tile_height: i32 = 1
-	floor_tile_width: i32 = 600 / TILE_SIDE_IN_PIXELS * 2
-	floor_offset: f32 = 5
+	LEVEL_1_PATH :: "data/levels/level_1.json"
+	level_1_data := #load(LEVEL_1_PATH)
+	level_entities := make([dynamic]Entity)
+	defer delete(level_entities)
+	if json.unmarshal(level_1_data, &level_entities, allocator = context.temp_allocator) != nil {
+		fmt.print("level failed to load:", LEVEL_1_PATH)
+	}
 
-	for y in 0 ..< floor_tile_height {
-		for x in 0 ..< floor_tile_width {
-			_ = hm.add(
-				&g.entities,
-				Entity{type = .Ground, pos = {f32(x) - floor_offset, f32(y) + floor_offset}, flags = {.Static}},
-			)
-		}
+	for e in level_entities {
+		_ = hm.add(&g.entities, e)
 	}
 
 	camera = k2.Camera {
 		zoom = 1,
+	}
+	//editor_save_entities_to_file("level_1")
+}
+
+editor_save_entities_to_file :: proc(level_name: string) {
+
+	level_entities := make([dynamic]Entity)
+	defer delete(level_entities)
+
+	entities_it := hm.iterator_make(&g.entities)
+	for e, handle in hm.iterate(&entities_it) {
+
+		if e.type == .Player {
+			continue
+		}
+
+		append(&level_entities, e^)
+	}
+
+	level_name_with_ending := fmt.tprint("data/levels/", level_name, "", ".json", sep = "")
+	if level_data, error := json.marshal(level_entities, allocator = context.temp_allocator); error == nil {
+		fmt.print("write file to:", level_name_with_ending)
+		err := os.write_entire_file(level_name_with_ending, level_data)
+	} else {
+		fmt.print(error)
 	}
 }
 
