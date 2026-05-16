@@ -273,8 +273,14 @@ step :: proc() -> bool {
 		}
 
 		k2.set_camera(camera)
-		//k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
-		k2.draw_text(fmt.tprint(edit_mode), {-128, -32}, 32, k2.WHITE)
+
+		k2.draw_text(fmt.tprint("edit_mode:", edit_mode), {-128, -32}, 32, k2.WHITE)
+		k2.draw_text(
+			"E to toggle edit,\nMouse_Left to place tile,\nMouse_Right hold to move,\nS to save",
+			{-128, 86},
+			24,
+			k2.WHITE,
+		)
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
 
 		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
