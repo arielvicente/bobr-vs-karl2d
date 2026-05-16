@@ -13,6 +13,12 @@ v2 :: k2.Vec2
 
 camera: k2.Camera
 
+WINDOW_SIZE: v2 : {600, 480}
+CAMERA_ZOOM: f32 : 2
+
+edit_mode: bool
+editor_camera_target: v2
+
 TILE_SIDE_IN_PIXELS: i32 : 16
 TILE_SIDE_IN_METERS: f32 : 1
 METERS_TO_PIXELS: f32 : f32(TILE_SIDE_IN_PIXELS) / TILE_SIDE_IN_METERS
@@ -65,6 +71,8 @@ Game_Memory :: struct {
 
 g: ^Game_Memory
 
+LEVEL_1_PATH :: "data/levels/level_1.json"
+
 main :: proc() {
 	track: mem.Tracking_Allocator
 	mem.tracking_allocator_init(&track, context.allocator)
@@ -92,7 +100,7 @@ init :: proc() {
 	//.Windowed
 	//.Windowed_Resizable
 	//.Borderless_Fullscreen
-	k2.init(600, 480, "bobr", options = {window_mode = .Windowed})
+	k2.init(int(WINDOW_SIZE.x), int(WINDOW_SIZE.y), "bobr", options = {window_mode = .Windowed})
 
 	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
@@ -103,7 +111,6 @@ init :: proc() {
 
 	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5})
 
-	LEVEL_1_PATH :: "data/levels/level_1.json"
 	level_1_data := #load(LEVEL_1_PATH)
 	level_entities := make([dynamic]Entity)
 	defer delete(level_entities)
@@ -116,9 +123,8 @@ init :: proc() {
 	}
 
 	camera = k2.Camera {
-		zoom = 1,
+		zoom = CAMERA_ZOOM,
 	}
-	//editor_save_entities_to_file("level_1")
 }
 
 editor_save_entities_to_file :: proc(level_name: string) {
@@ -136,10 +142,10 @@ editor_save_entities_to_file :: proc(level_name: string) {
 		append(&level_entities, e^)
 	}
 
-	level_name_with_ending := fmt.tprint("data/levels/", level_name, "", ".json", sep = "")
+	//level_name_with_ending := fmt.tprint("data/levels/", level_name, "", ".json", sep = "")
 	if level_data, error := json.marshal(level_entities, allocator = context.temp_allocator); error == nil {
-		fmt.print("write file to:", level_name_with_ending)
-		err := os.write_entire_file(level_name_with_ending, level_data)
+		fmt.print("write file to:", LEVEL_1_PATH)
+		err := os.write_entire_file(LEVEL_1_PATH, level_data)
 	} else {
 		fmt.print(error)
 	}
@@ -154,6 +160,9 @@ step :: proc() -> bool {
 	if k2.key_went_down(.Escape) {
 		return false
 	}
+	if k2.key_went_down(.E) {
+		edit_mode = !edit_mode
+	}
 
 	dt := k2.get_frame_time()
 	player := hm.get(&g.entities, g.player_handle)
@@ -163,9 +172,28 @@ step :: proc() -> bool {
 	}
 
 	input: {
+		if edit_mode {
+			if k2.mouse_button_is_held(.Right) {
+				editor_camera_target -= k2.get_mouse_delta()
+			}
+			if k2.mouse_button_went_down(.Left) {
+				pos := camera.target * PIXELS_TO_METERS
+				pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
+				pos.x = math.floor(pos.x + 0.5)
+				pos.y = math.floor(pos.y + 0.5)
+				_ = hm.add(&g.entities, Entity{pos = pos, type = .Ground, flags = {.Static}})
+			}
+			if k2.key_went_down(.S) {
+				editor_save_entities_to_file(LEVEL_1_PATH)
+			}
+		}
+
 		JUMP_SPEED: f32 : 5
+		AIR_TURN_MODIFIER: f32 : 0.1
 		if player.is_grounded {
 			player.vel += input_direction()
+		} else {
+			player.vel += input_direction() * AIR_TURN_MODIFIER
 		}
 		if input_jump() {
 			if player.is_grounded {
@@ -235,10 +263,18 @@ step :: proc() -> bool {
 
 	render: {
 		k2.clear(k2.BLACK)
-		camera.target = player.pos * METERS_TO_PIXELS + {-600 / 2, -480 / 2}
+
+		if edit_mode {
+			camera.target = editor_camera_target
+		} else {
+			camera.target =
+				player.pos * METERS_TO_PIXELS + {-WINDOW_SIZE.x / (CAMERA_ZOOM * 2), -WINDOW_SIZE.y / (CAMERA_ZOOM * 2)}
+			editor_camera_target = camera.target
+		}
+
 		k2.set_camera(camera)
 		//k2.draw_text("bobr", {-128, -128}, 64, k2.WHITE)
-		k2.draw_text(fmt.tprint(player.is_grounded), {-128, -128}, 64, k2.WHITE)
+		k2.draw_text(fmt.tprint(edit_mode), {-128, -32}, 32, k2.WHITE)
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
 
 		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
