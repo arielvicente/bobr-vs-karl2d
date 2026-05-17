@@ -235,28 +235,41 @@ step :: proc() -> bool {
 				*/
 
 				overlap_rect, collided := k2.rect_overlap(player_rect, ground_rect)
-				if collided {
-					if overlap_rect.h < overlap_rect.w {
-						if player.pos.y < entity.pos.y {
-							player.pos.y -= overlap_rect.h
-							player.is_grounded = true
-							player.vel.y = math.min(0, player.vel.y)
-						} else {
-							player.pos.y += overlap_rect.h
-							player.vel.y = math.max(0, player.vel.y)
-						}
-					} else {
-						if player.pos.x < entity.pos.x {
-							player.pos.x -= overlap_rect.w
-						} else {
-							player.pos.x += overlap_rect.w
-						}
-						player.vel.x = 0
-
-					}
-					player_rect.x = player.pos.x
-					player_rect.y = player.pos.y
+				if !collided {
+					continue;
 				}
+
+				// Overlap is wider than it is tall
+				if overlap_rect.h < overlap_rect.w {
+					// Player is above ground
+					if player.pos.y < entity.pos.y {
+						// Push player up, mark as grounded, prevent player from moving down through ground
+						player.pos.y -= overlap_rect.h
+						player.is_grounded = true
+						player.vel.y = math.min(0, player.vel.y)
+					// Player is below ground
+					} else {
+						// Push player down, prevent player from moving up through ground
+						player.pos.y += overlap_rect.h
+						player.vel.y = math.max(0, player.vel.y)
+					}
+				// Overlap is taller that it is wide
+				} else {
+					// Player is to the left of wall
+					if player.pos.x < entity.pos.x {
+						// Push player left
+						player.pos.x -= overlap_rect.w
+					// Player is to the right of wall
+					} else {
+						// Push player right
+						player.pos.x += overlap_rect.w
+					}
+					// Prevent player from moving through walls
+					player.vel.x = 0
+				}
+
+				player_rect.x = player.pos.x
+				player_rect.y = player.pos.y
 			}
 		}
 	}
