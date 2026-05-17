@@ -188,8 +188,8 @@ step :: proc() -> bool {
 			}
 		}
 
-		JUMP_SPEED: f32 : 5
-		AIR_TURN_MODIFIER: f32 : 0.1
+		JUMP_FORCE: f32 : 3.5
+		AIR_TURN_MODIFIER: f32 : 1
 		if player.is_grounded {
 			player.vel += input_direction()
 		} else {
@@ -197,16 +197,16 @@ step :: proc() -> bool {
 		}
 		if input_jump() {
 			if player.is_grounded {
-				player.vel.y -= JUMP_SPEED
+				player.vel.y -= JUMP_FORCE
 			}
 		}
 	}
 
 	physics: {
 		GRAVITY: f32 : 9.8
-		if player.is_grounded {
-			player.vel.x *= 0.8 // friction
-		}
+		FRICTION: f32 : 0.75
+
+		player.vel.x *= FRICTION
 		player.vel.y += GRAVITY * dt
 		player.pos += player.vel * player.speed * dt
 
