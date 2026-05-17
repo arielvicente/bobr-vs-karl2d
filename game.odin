@@ -56,6 +56,8 @@ Entity :: struct {
 	vel:         v2,
 	speed:       f32,
 	is_grounded: bool,
+	used_jumps:	 int,
+	max_jumps:	 int,
 }
 
 MAX_ENTITIES :: 256
@@ -166,6 +168,7 @@ step :: proc() -> bool {
 
 	dt := k2.get_frame_time()
 	player := hm.get(&g.entities, g.player_handle)
+	player.max_jumps = 2
 	half_side := TILE_SIDE_IN_METERS / 2
 
 	ai: {
@@ -196,8 +199,9 @@ step :: proc() -> bool {
 			player.vel += input_direction() * AIR_TURN_MODIFIER
 		}
 		if input_jump() {
-			if player.is_grounded {
+			if player.used_jumps < player.max_jumps {
 				player.vel.y -= JUMP_FORCE
+				player.used_jumps += 1
 			}
 		}
 	}
@@ -239,6 +243,7 @@ step :: proc() -> bool {
 					continue;
 				}
 
+
 				// Overlap is wider than it is tall
 				if overlap_rect.h < overlap_rect.w {
 					// Player is above ground
@@ -246,6 +251,7 @@ step :: proc() -> bool {
 						// Push player up, mark as grounded, prevent player from moving down through ground
 						player.pos.y -= overlap_rect.h
 						player.is_grounded = true
+						player.used_jumps = 0
 						player.vel.y = math.min(0, player.vel.y)
 					// Player is below ground
 					} else {
