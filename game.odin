@@ -200,7 +200,7 @@ step :: proc() -> bool {
 		}
 		if input_jump() {
 			if player.used_jumps < player.max_jumps {
-				player.vel.y -= JUMP_FORCE
+				player.vel.y = -JUMP_FORCE
 				player.used_jumps += 1
 			}
 		}
