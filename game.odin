@@ -56,8 +56,8 @@ Entity :: struct {
 	vel:         v2,
 	speed:       f32,
 	is_grounded: bool,
-	used_jumps:	 int,
-	max_jumps:	 int,
+	used_jumps:  int,
+	max_jumps:   int,
 }
 
 MAX_ENTITIES :: 256
@@ -191,14 +191,14 @@ step :: proc() -> bool {
 			}
 		}
 
-		JUMP_FORCE: f32 : 3.5
-		AIR_TURN_MODIFIER: f32 : 1
+		JUMP_FORCE: f32 : 20
+		AIR_TURN_MODIFIER: f32 : 0.75
 		if player.is_grounded {
 			player.vel += input_direction()
 		} else {
 			player.vel += input_direction() * AIR_TURN_MODIFIER
 		}
-		if input_jump() {
+		if input_jump() { 	// TODO: hold to jump higher?
 			if player.used_jumps < player.max_jumps {
 				player.vel.y = -JUMP_FORCE
 				player.used_jumps += 1
@@ -207,12 +207,25 @@ step :: proc() -> bool {
 	}
 
 	physics: {
-		GRAVITY: f32 : 9.8
+		JUMP_GRAVITY: f32 : 9.8 * 0.8
+		FALL_GRAVITY: f32 : 9.8
+		TERMINAL_VELOCITY: f32 : 30
 		FRICTION: f32 : 0.75
 
+		//if player.is_grounded {
+		// TODO: remove friction and just use a max speed?
 		player.vel.x *= FRICTION
-		player.vel.y += GRAVITY * dt
-		player.pos += player.vel * player.speed * dt
+		//}
+		if player.vel.y < 0 {
+			player.vel.y += JUMP_GRAVITY * JUMP_GRAVITY * dt
+		} else {
+			player.vel.y += FALL_GRAVITY * FALL_GRAVITY * dt
+		}
+		player.vel.y = math.min(player.vel.y, TERMINAL_VELOCITY)
+		// TODO: needs to take the sign/direction into account
+		//player.vel.x = math.min(player.vel.x, player.max_speed)
+		player.pos.x += player.vel.x * player.speed * dt
+		player.pos.y += player.vel.y * dt
 
 		player_rect: k2.Rect
 		player_rect.w = TILE_SIDE_IN_METERS
@@ -240,7 +253,7 @@ step :: proc() -> bool {
 
 				overlap_rect, collided := k2.rect_overlap(player_rect, ground_rect)
 				if !collided {
-					continue;
+					continue
 				}
 
 
@@ -253,19 +266,19 @@ step :: proc() -> bool {
 						player.is_grounded = true
 						player.used_jumps = 0
 						player.vel.y = math.min(0, player.vel.y)
-					// Player is below ground
+						// Player is below ground
 					} else {
 						// Push player down, prevent player from moving up through ground
 						player.pos.y += overlap_rect.h
 						player.vel.y = math.max(0, player.vel.y)
 					}
-				// Overlap is taller that it is wide
+					// Overlap is taller that it is wide
 				} else {
 					// Player is to the left of wall
 					if player.pos.x < entity.pos.x {
 						// Push player left
 						player.pos.x -= overlap_rect.w
-					// Player is to the right of wall
+						// Player is to the right of wall
 					} else {
 						// Push player right
 						player.pos.x += overlap_rect.w
