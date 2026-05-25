@@ -8,6 +8,7 @@ import "core:math/linalg"
 import "core:mem"
 import "core:os"
 import k2 "karl2d"
+import particles "particles"
 
 v2 :: k2.Vec2
 
@@ -103,6 +104,7 @@ init :: proc() {
 	//.Windowed_Resizable
 	//.Borderless_Fullscreen
 	k2.init(int(WINDOW_SIZE.x), int(WINDOW_SIZE.y), "bobr", options = {window_mode = .Windowed})
+	particles.init(k2.draw_circle)
 
 	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
@@ -202,6 +204,7 @@ step :: proc() -> bool {
 			if player.used_jumps < player.max_jumps {
 				player.vel.y = -JUMP_FORCE
 				player.used_jumps += 1
+				particles.spawn_particle_ring(player.pos * METERS_TO_PIXELS)
 			}
 		}
 	}
@@ -315,6 +318,8 @@ step :: proc() -> bool {
 		)
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
 
+		particles.update(dt)
+
 		@(static) animation_frame: f32 = 0
 		@(static) animation_frames: f32 = 2
 		@(static) animation_timer: f32 = 0
@@ -387,4 +392,5 @@ input_jump :: proc() -> bool {
 
 shutdown :: proc() {
 	k2.shutdown()
+	particles.dispose()
 }
