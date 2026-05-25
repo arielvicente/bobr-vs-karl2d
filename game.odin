@@ -31,8 +31,9 @@ Sprite_Name :: enum {
 }
 
 Sprite :: struct {
-	tex:  k2.Texture,
-	w, h: f32,
+	tex:    k2.Texture,
+	w, h:   f32,
+	frames: f32,
 }
 
 sprites: [Sprite_Name]Sprite
@@ -109,9 +110,11 @@ init :: proc() {
 	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.bobr].h = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.bobr].frames = 2
 	g.sprites[.ground].tex = k2.load_texture_from_bytes(#load("data/sprites/ground.png"))
 	g.sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.ground].frames = 1
 
 	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5})
 
@@ -321,7 +324,6 @@ step :: proc() -> bool {
 		particles.update(dt)
 
 		@(static) animation_frame: f32 = 0
-		@(static) animation_frames: f32 = 2
 		@(static) animation_timer: f32 = 0
 		animation_fps: f32 : 1.0 / 12.0 // NOTE: 12 fps
 
@@ -332,12 +334,12 @@ step :: proc() -> bool {
 			animation_timer = 0
 
 			animation_frame += 1
-			if animation_frame >= animation_frames do animation_frame = 0
+			if animation_frame >= g.sprites[.bobr].frames do animation_frame = 0
 		}
 		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
 
 		bobr_r.x = 16 * animation_frame // NOTE: 16 is the witdt of one frame
-		bobr_r.w = bobr_r.w / animation_frames
+		bobr_r.w = bobr_r.w / g.sprites[.bobr].frames
 
 		if player.vel.x > 0 {
 			bobr_r.w *= -1
