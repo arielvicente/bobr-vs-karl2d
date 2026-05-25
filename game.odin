@@ -315,13 +315,31 @@ step :: proc() -> bool {
 		)
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
 
+		@(static) animation_frame: f32 = 0
+		@(static) animation_frames: f32 = 2
+		@(static) animation_timer: f32 = 0
+		animation_fps: f32 : 1.0 / 12.0 // NOTE: 12 fps
+
+		animation_timer += dt
+		if animation_timer >= animation_fps {
+			animation_timer = 0
+
+			animation_frame += 1
+			if animation_frame >= animation_frames do animation_frame = 0
+		}
 		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
+
+		bobr_r.x = 16 * animation_frame // NOTE: 16 is the witdt of one frame
+		bobr_r.w = bobr_r.w / animation_frames
+
 		if player.vel.x > 0 {
 			bobr_r.w *= -1
 		}
-		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
+
 		k2.draw_texture_rect(g.sprites[.bobr].tex, bobr_r, player.pos * METERS_TO_PIXELS, half_side * METERS_TO_PIXELS, 0)
 
+
+		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
 		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(g.entities, handle))
