@@ -5,6 +5,14 @@ Vector2 :: [2]f32
 Vec2 :: [2]f32
 Color :: [4]u8
 
+/*
+    Todo:
+     * Randomness
+     * Support for squares and custom sprites
+     * Color gradients over time, indcluding alpha
+     * Easing curves
+*/
+
 particles : #soa[dynamic]Particle
 
 Particle :: struct {
