@@ -320,7 +320,9 @@ step :: proc() -> bool {
 		@(static) animation_timer: f32 = 0
 		animation_fps: f32 : 1.0 / 12.0 // NOTE: 12 fps
 
-		animation_timer += dt
+		if math.abs(player.vel.x) > 0.1 {
+			animation_timer += dt
+		}
 		if animation_timer >= animation_fps {
 			animation_timer = 0
 
