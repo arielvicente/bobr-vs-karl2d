@@ -1,6 +1,8 @@
 ﻿package particles
 
-import math "core:math"
+import "core:math"
+import "core:math/rand"
+import "core:math/linalg"
 Vector2 :: [2]f32
 Vec2 :: [2]f32
 Color :: [4]u8
@@ -20,6 +22,8 @@ Particle :: struct {
     velocity : Vector2,
     currentLifetime : f32,
     maxLifetime : f32,
+    startColor : Color,
+    endColor : Color,
 }
 
 draw_proc : proc(center: Vec2, radius: f32, color: Color, segments := 16)
@@ -52,17 +56,28 @@ update :: proc(deltaTime : f32) {
         // Update position
         p.position += p.velocity * deltaTime;
 
+        // Update color
+        normalizedLifetime : f32 = p.currentLifetime / p.maxLifetime
+        currentColor : Color = lerp_color(p.startColor, p.endColor, normalizedLifetime)
+
         // Draw particle
         //raylib.DrawCircleV(p.position, 3, p.color_current)
-        draw_proc(p.position, 3, { 255, 255, 255, 255 })
+        draw_proc(p.position, 3, currentColor)
     }
 }
 
-spawn_particle_ring :: proc(startPos : Vector2)
-{
+lerp_color :: proc(a : Color, b : Color, t : f32) -> Color {
+    newR := math.lerp(f32(a.r), f32(b.r), t)
+    newG := math.lerp(f32(a.g), f32(b.g), t)
+    newB := math.lerp(f32(a.b), f32(b.b), t)
+    newA := math.lerp(f32(a.a), f32(b.a), t)
+    return { u8(newR), u8(newG), u8(newB), u8(newA) }
+}
+
+spawn_particle_ring :: proc(startPos : Vector2) {
     center := startPos
     count  := 10
-    speed  : f32 = 100.0 // Pixels per second
+    speed  : f32 = 70.0 // Pixels per second
 
     for i in 0..<count
     {
@@ -77,7 +92,9 @@ spawn_particle_ring :: proc(startPos : Vector2)
             position        = center,
             velocity        = dir * speed, // Scale direction by speed
             currentLifetime = 0.0,
-            maxLifetime     = 2.0,
+            maxLifetime     = rand.float32_range(0.5, 3),
+            startColor      = {255, 0, 0, 255},
+            endColor        = {0, 255, 255, 255},
         }
 
         append_soa(&particles, p)
