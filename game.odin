@@ -150,7 +150,8 @@ editor_save_entities_to_file :: proc(level_name: string) {
 	}
 
 	//level_name_with_ending := fmt.tprint("data/levels/", level_name, "", ".json", sep = "")
-	if level_data, error := json.marshal(level_entities, allocator = context.temp_allocator); error == nil {
+	if level_data, error := json.marshal(level_entities, allocator = context.temp_allocator);
+	   error == nil {
 		fmt.print("write file to:", LEVEL_1_PATH)
 		err := os.write_entire_file(LEVEL_1_PATH, level_data)
 	} else {
@@ -217,21 +218,21 @@ step :: proc() -> bool {
 		FALL_GRAVITY: f32 : 9.8
 		TERMINAL_VELOCITY: f32 : 30
 		FRICTION: f32 : 0.75
-
-		//if player.is_grounded {
-		// TODO: remove friction and just use a max speed?
+		// Apply physics
 		player.vel.x *= FRICTION
-		//}
+
 		if player.vel.y < 0 {
 			player.vel.y += JUMP_GRAVITY * JUMP_GRAVITY * dt
 		} else {
 			player.vel.y += FALL_GRAVITY * FALL_GRAVITY * dt
 		}
+
 		player.vel.y = math.min(player.vel.y, TERMINAL_VELOCITY)
-		// TODO: needs to take the sign/direction into account
-		//player.vel.x = math.min(player.vel.x, player.max_speed)
+
+		//
+		// X AXIS
+		//
 		player.pos.x += player.vel.x * player.speed * dt
-		player.pos.y += player.vel.y * dt
 
 		player_rect: k2.Rect
 		player_rect.w = TILE_SIDE_IN_METERS
@@ -239,63 +240,75 @@ step :: proc() -> bool {
 		player_rect.x = player.pos.x
 		player_rect.y = player.pos.y
 
-		player.is_grounded = false
-
 		entities_it := hm.iterator_make(&g.entities)
-		ground_check: for entity, handle in hm.iterate(&entities_it) {
+		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(g.entities, handle))
 
-			if .Static in entity.flags {
-				ground_rect: k2.Rect
-				ground_rect.w = TILE_SIDE_IN_METERS
-				ground_rect.h = TILE_SIDE_IN_METERS
-				ground_rect.x = entity.pos.x
-				ground_rect.y = entity.pos.y
-
-				/*
-				** TODO: for every collision, add a collision object to a collission array
-				** and handle collision response in a separate loop :)
-				*/
-
-				overlap_rect, collided := k2.rect_overlap(player_rect, ground_rect)
-				if !collided {
-					continue
-				}
-
-
-				// Overlap is wider than it is tall
-				if overlap_rect.h < overlap_rect.w {
-					// Player is above ground
-					if player.pos.y < entity.pos.y {
-						// Push player up, mark as grounded, prevent player from moving down through ground
-						player.pos.y -= overlap_rect.h
-						player.is_grounded = true
-						player.used_jumps = 0
-						player.vel.y = math.min(0, player.vel.y)
-						// Player is below ground
-					} else {
-						// Push player down, prevent player from moving up through ground
-						player.pos.y += overlap_rect.h
-						player.vel.y = math.max(0, player.vel.y)
-					}
-					// Overlap is taller that it is wide
-				} else {
-					// Player is to the left of wall
-					if player.pos.x < entity.pos.x {
-						// Push player left
-						player.pos.x -= overlap_rect.w
-						// Player is to the right of wall
-					} else {
-						// Push player right
-						player.pos.x += overlap_rect.w
-					}
-					// Prevent player from moving through walls
-					player.vel.x = 0
-				}
-
-				player_rect.x = player.pos.x
-				player_rect.y = player.pos.y
+			if !(.Static in entity.flags) {
+				continue
 			}
+
+			ground_rect: k2.Rect
+			ground_rect.w = TILE_SIDE_IN_METERS
+			ground_rect.h = TILE_SIDE_IN_METERS
+			ground_rect.x = entity.pos.x
+			ground_rect.y = entity.pos.y
+
+			overlap_rect, collided := k2.rect_overlap(player_rect, ground_rect)
+			if !collided {
+				continue
+			}
+
+			if player.vel.x > 0 {
+				// Moving right into wall
+				player.pos.x -= overlap_rect.w
+			} else if player.vel.x < 0 {
+				// Moving left into wall
+				player.pos.x += overlap_rect.w
+			}
+
+			player.vel.x = 0
+			player_rect.x = player.pos.x
+		}
+
+		//
+		// Y AXIS
+		//
+		player.pos.y += player.vel.y * dt
+		player_rect.y = player.pos.y
+
+		entities_it = hm.iterator_make(&g.entities)
+		for entity, handle in hm.iterate(&entities_it) {
+			assert(hm.is_valid(g.entities, handle))
+
+			if !(.Static in entity.flags) {
+				continue
+			}
+
+			ground_rect: k2.Rect
+			ground_rect.w = TILE_SIDE_IN_METERS
+			ground_rect.h = TILE_SIDE_IN_METERS
+			ground_rect.x = entity.pos.x
+			ground_rect.y = entity.pos.y
+
+			overlap_rect, collided := k2.rect_overlap(player_rect, ground_rect)
+			if !collided {
+				continue
+			}
+
+			if player.vel.y > 0 {
+				// Falling onto ground
+				player.pos.y -= overlap_rect.h
+				player.vel.y = 0
+				player.is_grounded = true
+				player.used_jumps = 0
+			} else if player.vel.y < 0 {
+				// Hitting ceiling
+				player.pos.y += overlap_rect.h
+				player.vel.y = 0
+			}
+
+			player_rect.y = player.pos.y
 		}
 	}
 
@@ -306,7 +319,8 @@ step :: proc() -> bool {
 			camera.target = editor_camera_target
 		} else {
 			camera.target =
-				player.pos * METERS_TO_PIXELS + {-WINDOW_SIZE.x / (CAMERA_ZOOM * 2), -WINDOW_SIZE.y / (CAMERA_ZOOM * 2)}
+				player.pos * METERS_TO_PIXELS +
+				{-WINDOW_SIZE.x / (CAMERA_ZOOM * 2), -WINDOW_SIZE.y / (CAMERA_ZOOM * 2)}
 			editor_camera_target = camera.target
 		}
 
@@ -345,7 +359,13 @@ step :: proc() -> bool {
 			bobr_r.w *= -1
 		}
 
-		k2.draw_texture_rect(g.sprites[.bobr].tex, bobr_r, player.pos * METERS_TO_PIXELS, half_side * METERS_TO_PIXELS, 0)
+		k2.draw_texture_rect(
+			g.sprites[.bobr].tex,
+			bobr_r,
+			player.pos * METERS_TO_PIXELS,
+			half_side * METERS_TO_PIXELS,
+			0,
+		)
 
 
 		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
@@ -374,13 +394,19 @@ input_direction :: proc() -> v2 {
 	if k2.key_is_held(.W) || k2.key_is_held(.Up) || k2.gamepad_button_is_held(0, .Left_Face_Up) {
 		dir.y = -1
 	}
-	if k2.key_is_held(.S) || k2.key_is_held(.Down) || k2.gamepad_button_is_held(0, .Left_Face_Down) {
+	if k2.key_is_held(.S) ||
+	   k2.key_is_held(.Down) ||
+	   k2.gamepad_button_is_held(0, .Left_Face_Down) {
 		dir.y = 1
 	}
-	if k2.key_is_held(.A) || k2.key_is_held(.Left) || k2.gamepad_button_is_held(0, .Left_Face_Left) {
+	if k2.key_is_held(.A) ||
+	   k2.key_is_held(.Left) ||
+	   k2.gamepad_button_is_held(0, .Left_Face_Left) {
 		dir.x = -1
 	}
-	if k2.key_is_held(.D) || k2.key_is_held(.Right) || k2.gamepad_button_is_held(0, .Left_Face_Right) {
+	if k2.key_is_held(.D) ||
+	   k2.key_is_held(.Right) ||
+	   k2.gamepad_button_is_held(0, .Left_Face_Right) {
 		dir.x = 1
 	}
 
