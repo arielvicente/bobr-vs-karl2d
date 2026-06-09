@@ -50,10 +50,25 @@ E_Flag :: enum u16 {
 	Static,
 }
 
+COYOTE_TIME_FRAMES: u8 : 5
+E_Grounded :: struct {
+	coyote_frame_timer: u8,
+	has_left_ground:    bool,
+}
+E_Airborne :: struct {
+	used_jumps: int,
+}
+
+E_State :: union {
+	E_Grounded,
+	E_Airborne,
+}
+
 Entity :: struct {
 	handle:      Handle,
 	type:        E_Type,
 	flags:       bit_set[E_Flag],
+	state:       E_State,
 	pos:         v2,
 	vel:         v2,
 	speed:       f32,
@@ -116,7 +131,11 @@ init :: proc() {
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].frames = 1
 
-	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5})
+	g.player_handle = hm.add(
+		&g.entities,
+		Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}},
+	)
+	fmt.println(hm.get(&g.entities, g.player_handle).state)
 
 	level_1_data := #load(LEVEL_1_PATH)
 	level_entities := make([dynamic]Entity)
@@ -178,6 +197,20 @@ step :: proc() -> bool {
 	half_side := TILE_SIDE_IN_METERS / 2
 
 	ai: {
+		switch &s in player.state {
+		case E_Grounded:
+			if s.has_left_ground {
+				s.coyote_frame_timer += 1
+				fmt.println("coyote frame:", s.coyote_frame_timer)
+				if s.coyote_frame_timer >= COYOTE_TIME_FRAMES {
+					player.state = E_Airborne {
+						used_jumps = 0,
+					}
+					fmt.println("set state to", player.state)
+				}
+			}
+		case E_Airborne:
+		}
 	}
 
 	input: {
@@ -186,11 +219,36 @@ step :: proc() -> bool {
 				editor_camera_target -= k2.get_mouse_delta()
 			}
 			if k2.mouse_button_went_down(.Left) {
-				pos := camera.target * PIXELS_TO_METERS
-				pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
-				pos.x = math.floor(pos.x + 0.5)
-				pos.y = math.floor(pos.y + 0.5)
-				_ = hm.add(&g.entities, Entity{pos = pos, type = .Ground, flags = {.Static}})
+				if k2.key_is_held(.D) {
+					pos := camera.target * PIXELS_TO_METERS
+					pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
+					pos.x = math.floor(pos.x + 0.5)
+					pos.y = math.floor(pos.y + 0.5)
+
+					entities_it := hm.iterator_make(&g.entities)
+					remove_check: for entity, handle in hm.iterate(&entities_it) {
+						if !(.Static in entity.flags) {
+							continue
+						}
+
+						rect: k2.Rect
+						rect.w = TILE_SIDE_IN_METERS
+						rect.h = TILE_SIDE_IN_METERS
+						rect.x = entity.pos.x
+						rect.y = entity.pos.y
+						hit := k2.point_in_rect(pos, rect)
+						if hit {
+							hm.remove(&g.entities, handle)
+							break remove_check
+						}
+					}
+				} else {
+					pos := camera.target * PIXELS_TO_METERS
+					pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
+					pos.x = math.floor(pos.x + 0.5)
+					pos.y = math.floor(pos.y + 0.5)
+					_ = hm.add(&g.entities, Entity{pos = pos, type = .Ground, flags = {.Static}})
+				}
 			}
 			if k2.key_went_down(.S) {
 				editor_save_entities_to_file(LEVEL_1_PATH)
@@ -218,7 +276,7 @@ step :: proc() -> bool {
 		FALL_GRAVITY: f32 : 9.8
 		TERMINAL_VELOCITY: f32 : 30
 		FRICTION: f32 : 0.75
-		// Apply physics
+
 		player.vel.x *= FRICTION
 
 		if player.vel.y < 0 {
@@ -277,6 +335,8 @@ step :: proc() -> bool {
 		player.pos.y += player.vel.y * dt
 		player_rect.y = player.pos.y
 
+		had_ground_collision: bool = false
+
 		entities_it = hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(g.entities, handle))
@@ -300,7 +360,13 @@ step :: proc() -> bool {
 				// Falling onto ground
 				player.pos.y -= overlap_rect.h
 				player.vel.y = 0
-				player.is_grounded = true
+				if _, ok := player.state.(E_Airborne); ok {
+					player.state = E_Grounded{}
+					fmt.println("set state to", player.state)
+					particles.spawn_particle_ring(player.pos * METERS_TO_PIXELS)
+				}
+				had_ground_collision = true
+				//player.is_grounded = true
 				player.used_jumps = 0
 			} else if player.vel.y < 0 {
 				// Hitting ceiling
@@ -309,6 +375,13 @@ step :: proc() -> bool {
 			}
 
 			player_rect.y = player.pos.y
+		}
+
+		if !had_ground_collision {
+			if grounded_state, ok := player.state.(E_Grounded); ok {
+				grounded_state.has_left_ground = true
+				player.state = grounded_state
+			}
 		}
 	}
 
