@@ -43,12 +43,14 @@ E_Type :: enum {
 	None,
 	Player,
 	Ground,
+	Pickup,
 }
 
 E_Flag :: enum u16 {
 	None,
 	Dynamic,
 	Static,
+	Pickup,
 }
 
 COYOTE_TIME_FRAMES: u8 : 5
@@ -164,6 +166,8 @@ init_game_state :: proc() {
 	hm.clear(&g.entities)
 
 	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}})
+
+	_ = hm.add(&g.entities, Entity{type = .Pickup, flags = {.Pickup}, pos = {3, -2}})
 
 	level_1_data := #load(LEVEL_1_PATH)
 	level_entities := make([dynamic]Entity)
@@ -492,6 +496,30 @@ step :: proc() -> bool {
 				player.state = grounded_state
 			}
 		}
+
+		pickup_collision: {
+			pickup_it := hm.iterator_make(&g.entities)
+			for entity, handle in hm.iterate(&pickup_it) {
+				if !(.Pickup in entity.flags) {
+					continue
+				}
+
+				pickup_rect: k2.Rect
+				pickup_rect.w = TILE_SIDE_IN_METERS
+				pickup_rect.h = TILE_SIDE_IN_METERS
+				pickup_rect.x = entity.pos.x
+				pickup_rect.y = entity.pos.y
+
+				_, collided := k2.rect_overlap(player_rect, pickup_rect)
+				if collided {
+					g.level_timer_seconds += 5.0
+					hm.remove(&g.entities, handle)
+
+					break
+				}
+			}
+		}
+
 	}
 
 	if edit_mode {
@@ -579,6 +607,19 @@ step :: proc() -> bool {
 					half_side * METERS_TO_PIXELS,
 					0,
 				)
+			}
+			else if entity.type == .Pickup {
+				pixel_pos := entity.pos * METERS_TO_PIXELS
+
+				pickup_rect := k2.Rect{
+					x = pixel_pos.x - (f32(TILE_SIDE_IN_PIXELS) / 2),
+					y = pixel_pos.y - (f32(TILE_SIDE_IN_PIXELS) / 2),
+					w = f32(TILE_SIDE_IN_PIXELS),
+					h = f32(TILE_SIDE_IN_PIXELS),
+				}
+
+				k2.draw_rect(pickup_rect, k2.GREEN)
+
 			}
 		}
 
