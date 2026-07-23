@@ -259,7 +259,7 @@ step :: proc() -> bool {
 	player.max_jumps = 2
 	half_side := TILE_SIDE_IN_METERS / 2
 
-	if g.level_timer_seconds > 0 {
+	if !edit_mode && g.level_timer_seconds > 0 {
 		g.level_timer_seconds -= dt
 		if g.level_timer_seconds < 0 {
 			g.level_timer_seconds = 0
@@ -307,6 +307,7 @@ step :: proc() -> bool {
 	input: {
 		if edit_mode {
 			editor_input()
+			g.level_timer_seconds += 30.0
 		}
 
 		if edit_mode {
