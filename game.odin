@@ -95,6 +95,7 @@ Game_Memory :: struct {
 	temporal_index_highest: int,
 	temporal_counter:       f32,
 	is_game_over:			bool,
+	game_over_timer:		f32,
 }
 
 g: ^Game_Memory
@@ -158,6 +159,7 @@ init_game_state :: proc() {
 	g.temporal_index = 0
 	g.temporal_index_highest = 0
 	g.temporal_counter = 0
+	g.game_over_timer = 1.33
 
 	hm.clear(&g.entities)
 
@@ -209,6 +211,8 @@ step :: proc() -> bool {
 		return false
 	}
 
+	dt := k2.get_frame_time()
+
 	game_over: {
 		if g.is_game_over {
 			k2.clear(k2.BLACK)
@@ -219,6 +223,11 @@ step :: proc() -> bool {
 			text_pos := v2{WINDOW_SIZE.x / 2 - 180, WINDOW_SIZE.y / 2}
 			k2.draw_text(text, text_pos, 32, k2.WHITE)
 			k2.present()
+
+			if g.game_over_timer > 0 {
+				g.game_over_timer -= dt;
+				return true
+			}
 
 			// Wait for input to restart
 			if k2.key_went_down(.Space) ||
@@ -242,7 +251,6 @@ step :: proc() -> bool {
 		edit_mode = !edit_mode
 	}
 
-	dt := k2.get_frame_time()
 	player := hm.get(&g.entities, g.player_handle)
 	player.max_jumps = 2
 	half_side := TILE_SIDE_IN_METERS / 2
