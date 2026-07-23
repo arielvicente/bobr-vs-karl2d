@@ -94,6 +94,7 @@ Game_Memory :: struct {
 	temporal_index:         int,
 	temporal_index_highest: int,
 	temporal_counter:       f32,
+	is_game_over:			bool,
 }
 
 g: ^Game_Memory
@@ -134,10 +135,6 @@ init :: proc() {
 
 	particles.init(k2.draw_circle)
 
-	g.level_timer_seconds = 10.0
-
-	g.temporal_index = 0
-
 	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.bobr].h = f32(TILE_SIDE_IN_PIXELS)
@@ -147,8 +144,24 @@ init :: proc() {
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].frames = 1
 
+	init_game_state()
+
+	camera = k2.Camera {
+		zoom = CAMERA_ZOOM,
+	}
+}
+
+init_game_state :: proc() {
+
+	g.is_game_over = false
+	g.level_timer_seconds = 10.0
+	g.temporal_index = 0
+	g.temporal_index_highest = 0
+	g.temporal_counter = 0
+
+	hm.clear(&g.entities)
+
 	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}})
-	fmt.println(hm.get(&g.entities, g.player_handle).state)
 
 	level_1_data := #load(LEVEL_1_PATH)
 	level_entities := make([dynamic]Entity)
@@ -159,10 +172,6 @@ init :: proc() {
 
 	for e in level_entities {
 		_ = hm.add(&g.entities, e)
-	}
-
-	camera = k2.Camera {
-		zoom = CAMERA_ZOOM,
 	}
 }
 
@@ -199,6 +208,36 @@ step :: proc() -> bool {
 	if k2.key_went_down(.Escape) {
 		return false
 	}
+
+	game_over: {
+		if g.is_game_over {
+			k2.clear(k2.BLACK)
+			k2.set_camera(nil) // Ensure we draw in screen space
+
+			text := "GAME BOBER :(\nPress (almost) any key to Restart"
+			// Center the text roughly on screen
+			text_pos := v2{WINDOW_SIZE.x / 2 - 180, WINDOW_SIZE.y / 2}
+			k2.draw_text(text, text_pos, 32, k2.WHITE)
+			k2.present()
+
+			// Wait for input to restart
+			if k2.key_went_down(.Space) ||
+			k2.gamepad_button_went_down(0, .Right_Face_Up) ||
+			k2.gamepad_button_went_down(0, .Right_Face_Down) ||
+			k2.gamepad_button_went_down(0, .Right_Face_Left) ||
+			k2.gamepad_button_went_down(0, .Right_Face_Right) ||
+			k2.gamepad_button_went_down(0, .Middle_Face_Left) ||
+			k2.gamepad_button_went_down(0, .Middle_Face_Middle) ||
+			k2.gamepad_button_went_down(0, .Middle_Face_Right) {
+				init_game_state()
+			}
+
+			return true
+		}
+	}
+
+
+
 	if k2.key_went_down(.E) {
 		edit_mode = !edit_mode
 	}
@@ -212,7 +251,7 @@ step :: proc() -> bool {
 		g.level_timer_seconds -= dt
 		if g.level_timer_seconds < 0 {
 			g.level_timer_seconds = 0
-			// Game over
+			g.is_game_over = true
 		}
 	}
 
@@ -314,7 +353,7 @@ step :: proc() -> bool {
 			}
 		}
 
-		if input_temporal_return() { 	// TODO: hold to jump higher?
+		if input_temporal_return() {
 			t_index: int
 			if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
 				// NOTE: temporal buffer has or should loop
