@@ -25,7 +25,8 @@ TILE_SIDE_IN_METERS: f32 : 1
 METERS_TO_PIXELS: f32 : f32(TILE_SIDE_IN_PIXELS) / TILE_SIDE_IN_METERS
 PIXELS_TO_METERS: f32 : TILE_SIDE_IN_METERS / f32(TILE_SIDE_IN_PIXELS)
 
-Sprite_Name :: enum {
+Sprite_Name :: enum u32 {
+	none,
 	bobr,
 	ground,
 }
@@ -78,17 +79,24 @@ Entity :: struct {
 }
 
 MAX_ENTITIES :: 256
+TEMPORAL_FRAME_BUFFER_LENGHT :: 300
+TEMPORAL_BUFFER_DELAY :: 300
 
 Handle :: hm.Handle32
 
 Game_Memory :: struct {
-	game_running:  bool,
-	sprites:       [Sprite_Name]Sprite,
-	entities:      hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle),
-	player_handle: Handle,
+	game_running:           bool,
+	sprites:                [Sprite_Name]Sprite,
+	entities:               hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle),
+	player_handle:          Handle,
+	temporal_positions:     [TEMPORAL_FRAME_BUFFER_LENGHT]v2,
+	temporal_index:         int,
+	temporal_index_highest: int,
+	temporal_counter:       f32,
 }
 
 g: ^Game_Memory
+
 
 LEVEL_1_PATH :: "data/levels/level_1.json"
 
@@ -120,7 +128,12 @@ init :: proc() {
 	//.Windowed_Resizable
 	//.Borderless_Fullscreen
 	k2.init(int(WINDOW_SIZE.x), int(WINDOW_SIZE.y), "bobr", options = {window_mode = .Windowed})
+
+	editor_init()
+
 	particles.init(k2.draw_circle)
+
+	g.temporal_index = 0
 
 	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
@@ -131,10 +144,7 @@ init :: proc() {
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].frames = 1
 
-	g.player_handle = hm.add(
-		&g.entities,
-		Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}},
-	)
+	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}})
 	fmt.println(hm.get(&g.entities, g.player_handle).state)
 
 	level_1_data := #load(LEVEL_1_PATH)
@@ -169,8 +179,7 @@ editor_save_entities_to_file :: proc(level_name: string) {
 	}
 
 	//level_name_with_ending := fmt.tprint("data/levels/", level_name, "", ".json", sep = "")
-	if level_data, error := json.marshal(level_entities, allocator = context.temp_allocator);
-	   error == nil {
+	if level_data, error := json.marshal(level_entities, allocator = context.temp_allocator); error == nil {
 		fmt.print("write file to:", LEVEL_1_PATH)
 		err := os.write_entire_file(LEVEL_1_PATH, level_data)
 	} else {
@@ -196,6 +205,26 @@ step :: proc() -> bool {
 	player.max_jumps = 2
 	half_side := TILE_SIDE_IN_METERS / 2
 
+	temporal_buffering: {
+		if g.temporal_counter < TEMPORAL_BUFFER_DELAY {
+			g.temporal_counter += 1
+		}
+
+		// Do temporal buffering // NOTE: TENET
+		g.temporal_positions[g.temporal_index] = player.pos
+		g.temporal_index += 1
+		if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT {
+			g.temporal_index = 0
+		}
+
+
+		if g.temporal_index_highest < TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+			g.temporal_index_highest += 1
+		}
+
+	}
+
+
 	ai: {
 		switch &s in player.state {
 		case E_Grounded:
@@ -214,6 +243,10 @@ step :: proc() -> bool {
 	}
 
 	input: {
+		if edit_mode {
+			editor_input()
+		}
+
 		if edit_mode {
 			if k2.mouse_button_is_held(.Right) {
 				editor_camera_target -= k2.get_mouse_delta()
@@ -268,6 +301,24 @@ step :: proc() -> bool {
 				player.used_jumps += 1
 				particles.spawn_particle_ring(player.pos * METERS_TO_PIXELS)
 			}
+		}
+
+		if input_temporal_return() { 	// TODO: hold to jump higher?
+			t_index: int
+			if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+				// NOTE: temporal buffer has or should loop
+				// NOTE: return index is temporal_index + 1 unless temporal_index is == TEMPORAL_FRAME_BUFFER_LENGHT in which case return index is 0
+				if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT {
+					t_index = 0
+				} else {
+					t_index = g.temporal_index + 1
+				}
+			} else {
+				// NOTE: temporal buffer is not full, return index is always 0
+				t_index = 0
+			}
+
+			player.pos = g.temporal_positions[t_index]
 		}
 	}
 
@@ -385,6 +436,10 @@ step :: proc() -> bool {
 		}
 	}
 
+	if edit_mode {
+		editor_process_frame()
+	}
+
 	render: {
 		k2.clear(k2.BLACK)
 
@@ -392,8 +447,7 @@ step :: proc() -> bool {
 			camera.target = editor_camera_target
 		} else {
 			camera.target =
-				player.pos * METERS_TO_PIXELS +
-				{-WINDOW_SIZE.x / (CAMERA_ZOOM * 2), -WINDOW_SIZE.y / (CAMERA_ZOOM * 2)}
+				player.pos * METERS_TO_PIXELS + {-WINDOW_SIZE.x / (CAMERA_ZOOM * 2), -WINDOW_SIZE.y / (CAMERA_ZOOM * 2)}
 			editor_camera_target = camera.target
 		}
 
@@ -407,8 +461,6 @@ step :: proc() -> bool {
 			k2.WHITE,
 		)
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
-
-		particles.update(dt)
 
 		@(static) animation_frame: f32 = 0
 		@(static) animation_timer: f32 = 0
@@ -432,14 +484,30 @@ step :: proc() -> bool {
 			bobr_r.w *= -1
 		}
 
+		k2.draw_texture_rect(g.sprites[.bobr].tex, bobr_r, player.pos * METERS_TO_PIXELS, half_side * METERS_TO_PIXELS, 0)
+
+		t_index: int
+		if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+			// NOTE: temporal buffer has or should loop
+			// NOTE: return index is temporal_index + 1 unless temporal_index is == TEMPORAL_FRAME_BUFFER_LENGHT in which case return index is 0
+			if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+				t_index = 0
+			} else {
+				t_index = g.temporal_index + 1
+			}
+		} else {
+			// NOTE: temporal buffer is not full, return index is always 0
+			t_index = 0
+		}
+
 		k2.draw_texture_rect(
 			g.sprites[.bobr].tex,
 			bobr_r,
-			player.pos * METERS_TO_PIXELS,
+			g.temporal_positions[t_index] * METERS_TO_PIXELS,
 			half_side * METERS_TO_PIXELS,
 			0,
+			k2.LIGHT_GREEN,
 		)
-
 
 		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
 		entities_it := hm.iterator_make(&g.entities)
@@ -456,6 +524,13 @@ step :: proc() -> bool {
 			}
 		}
 
+		particles.update(dt)
+
+		k2.set_camera(nil)
+		if edit_mode {
+			editor_render()
+		}
+
 		k2.present()
 	}
 
@@ -467,19 +542,13 @@ input_direction :: proc() -> v2 {
 	if k2.key_is_held(.W) || k2.key_is_held(.Up) || k2.gamepad_button_is_held(0, .Left_Face_Up) {
 		dir.y = -1
 	}
-	if k2.key_is_held(.S) ||
-	   k2.key_is_held(.Down) ||
-	   k2.gamepad_button_is_held(0, .Left_Face_Down) {
+	if k2.key_is_held(.S) || k2.key_is_held(.Down) || k2.gamepad_button_is_held(0, .Left_Face_Down) {
 		dir.y = 1
 	}
-	if k2.key_is_held(.A) ||
-	   k2.key_is_held(.Left) ||
-	   k2.gamepad_button_is_held(0, .Left_Face_Left) {
+	if k2.key_is_held(.A) || k2.key_is_held(.Left) || k2.gamepad_button_is_held(0, .Left_Face_Left) {
 		dir.x = -1
 	}
-	if k2.key_is_held(.D) ||
-	   k2.key_is_held(.Right) ||
-	   k2.gamepad_button_is_held(0, .Left_Face_Right) {
+	if k2.key_is_held(.D) || k2.key_is_held(.Right) || k2.gamepad_button_is_held(0, .Left_Face_Right) {
 		dir.x = 1
 	}
 
@@ -491,7 +560,13 @@ input_jump :: proc() -> bool {
 	return result
 }
 
+input_temporal_return :: proc() -> bool {
+	result := k2.key_went_down(.R) || k2.gamepad_button_went_down(0, .Right_Face_Up)
+	return result
+}
+
 shutdown :: proc() {
-	k2.shutdown()
+	editor_destroy()
 	particles.dispose()
+	k2.shutdown()
 }
