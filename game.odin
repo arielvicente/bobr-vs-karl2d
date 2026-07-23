@@ -89,6 +89,7 @@ Game_Memory :: struct {
 	sprites:                [Sprite_Name]Sprite,
 	entities:               hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle),
 	player_handle:          Handle,
+	level_timer_seconds:	f32,
 	temporal_positions:     [TEMPORAL_FRAME_BUFFER_LENGHT]v2,
 	temporal_index:         int,
 	temporal_index_highest: int,
@@ -132,6 +133,8 @@ init :: proc() {
 	editor_init()
 
 	particles.init(k2.draw_circle)
+
+	g.level_timer_seconds = 10.0
 
 	g.temporal_index = 0
 
@@ -205,6 +208,15 @@ step :: proc() -> bool {
 	player.max_jumps = 2
 	half_side := TILE_SIDE_IN_METERS / 2
 
+	if g.level_timer_seconds > 0 {
+		g.level_timer_seconds -= dt
+		if g.level_timer_seconds < 0 {
+			g.level_timer_seconds = 0
+			// Game over
+		}
+	}
+
+
 	temporal_buffering: {
 		if g.temporal_counter < TEMPORAL_BUFFER_DELAY {
 			g.temporal_counter += 1
@@ -216,7 +228,6 @@ step :: proc() -> bool {
 		if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT {
 			g.temporal_index = 0
 		}
-
 
 		if g.temporal_index_highest < TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
 			g.temporal_index_highest += 1
@@ -527,6 +538,16 @@ step :: proc() -> bool {
 		particles.update(dt)
 
 		k2.set_camera(nil)
+
+		hud: {
+			seconds := int(g.level_timer_seconds)
+			hundredths := int((g.level_timer_seconds - f32(seconds)) * 100)
+			countdown_text := fmt.tprintf("%02d:%02d", seconds, hundredths)
+			font_size: f32 = 24
+			text_pos := v2{ WINDOW_SIZE.x - 70, 16 }
+			k2.draw_text(countdown_text, text_pos, font_size, k2.WHITE)
+		}
+
 		if edit_mode {
 			editor_render()
 		}

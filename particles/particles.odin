@@ -77,7 +77,7 @@ dispose :: proc() {
 }
 
 update :: proc(deltaTime: f32) {
-
+	/*
 	particleCount := len(particles)
 
 	for i := particleCount - 1; i >= 0; i -= 1 {
@@ -108,7 +108,7 @@ update :: proc(deltaTime: f32) {
 
 		// Draw particle
 		draw_proc(p.position_current, 3, currentColor)
-	}
+	}*/
 }
 
 ease :: proc(life_time: f32, ease: Easing) -> f32 {
