@@ -253,6 +253,8 @@ step :: proc() -> bool {
 
 	if k2.key_went_down(.E) {
 		edit_mode = !edit_mode
+
+		if edit_mode do g.level_timer_seconds += 30.0
 	}
 
 	player := hm.get(&g.entities, g.player_handle)
@@ -307,7 +309,6 @@ step :: proc() -> bool {
 	input: {
 		if edit_mode {
 			editor_input()
-			g.level_timer_seconds += 30.0
 		}
 
 		if edit_mode {
@@ -656,7 +657,7 @@ input_direction :: proc() -> v2 {
 	{
 		dir.x = x_axis
 	}
-	
+
 	if input_any_of_keys_are_held({.A, .Left}) || k2.gamepad_button_is_held(0, .Left_Face_Left){
 		dir.x = -1
 	}
