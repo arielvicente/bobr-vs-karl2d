@@ -560,16 +560,9 @@ step :: proc() -> bool {
 			animation_frame += 1
 			if animation_frame >= g.sprites[.bobr].frames do animation_frame = 0
 		}
-		bobr_r := k2.get_texture_rect(g.sprites[.bobr].tex)
 
-		bobr_r.x = 16 * animation_frame // NOTE: 16 is the witdt of one frame
-		bobr_r.w = bobr_r.w / g.sprites[.bobr].frames
-
-		if player.vel.x > 0 {
-			bobr_r.w *= -1
-		}
-
-		k2.draw_texture_rect(g.sprites[.bobr].tex, bobr_r, player.pos * METERS_TO_PIXELS, half_side * METERS_TO_PIXELS, 0)
+		is_moving_right := player.vel.x > 0
+		draw_sprite(.bobr, player.pos, animation_frame, is_moving_right)
 
 		t_index: int
 		if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
@@ -585,27 +578,14 @@ step :: proc() -> bool {
 			t_index = 0
 		}
 
-		k2.draw_texture_rect(
-			g.sprites[.bobr].tex,
-			bobr_r,
-			g.temporal_positions[t_index] * METERS_TO_PIXELS,
-			half_side * METERS_TO_PIXELS,
-			0,
-			k2.LIGHT_GREEN,
-		)
+		draw_sprite(.bobr, g.temporal_positions[t_index], animation_frame, is_moving_right, k2.LIGHT_GREEN)
 
 		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
 		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			assert(hm.is_valid(g.entities, handle))
 			if entity.type == .Ground {
-				k2.draw_texture_rect(
-					g.sprites[.ground].tex,
-					ground_r,
-					entity.pos * METERS_TO_PIXELS,
-					half_side * METERS_TO_PIXELS,
-					0,
-				)
+				draw_sprite(.ground, entity.pos)
 			}
 			else if entity.type == .Pickup {
 				pixel_pos := entity.pos * METERS_TO_PIXELS
@@ -624,15 +604,9 @@ step :: proc() -> bool {
 
 		if edit_mode {
 			preview_pos := get_snapped_mouse_pos()
-
 			preview_color := k2.WHITE
 			preview_color.a = 128
-			tex := g.sprites[.ground].tex
-			pos := preview_pos * METERS_TO_PIXELS
-			origin := half_side * METERS_TO_PIXELS
-
-			ground_r := k2.get_texture_rect(tex)
-			k2.draw_texture_rect(tex, ground_r, pos, origin, 0, preview_color)
+			draw_sprite(.ground, preview_pos, 0, false, preview_color)
 		}
 
 		particles.update(dt)
@@ -656,6 +630,25 @@ step :: proc() -> bool {
 	}
 
 	return true
+}
+
+draw_sprite :: proc(name: Sprite_Name, pos: v2, frame: f32 = 0, flip_x: bool = false, tint: k2.Color = k2.WHITE) {
+
+	sprite := &g.sprites[name]
+	rect := k2.get_texture_rect(sprite.tex)
+
+	frame_width := rect.w / sprite.frames
+	rect.w = frame_width
+	rect.x = frame_width * math.floor(frame)
+
+	if flip_x {
+		rect.w *= -1
+	}
+
+	pixel_pos := pos * METERS_TO_PIXELS
+	offset := (TILE_SIDE_IN_METERS / 2) * METERS_TO_PIXELS
+
+	k2.draw_texture_rect(sprite.tex, rect, pixel_pos, offset, 0, tint)
 }
 
 get_snapped_mouse_pos :: proc() -> v2 {
