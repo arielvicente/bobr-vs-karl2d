@@ -649,16 +649,19 @@ step :: proc() -> bool {
 
 input_direction :: proc() -> v2 {
 	dir: v2
-	if k2.key_is_held(.W) || k2.key_is_held(.Up) || k2.gamepad_button_is_held(0, .Left_Face_Up) {
-		dir.y = -1
+
+	x_axis := k2.get_gamepad_axis(0, .Left_Stick_X)
+
+	if x_axis < -0.1 || x_axis > 0.1
+	{
+		dir.x = x_axis
 	}
-	if k2.key_is_held(.S) || k2.key_is_held(.Down) || k2.gamepad_button_is_held(0, .Left_Face_Down) {
-		dir.y = 1
-	}
-	if k2.key_is_held(.A) || k2.key_is_held(.Left) || k2.gamepad_button_is_held(0, .Left_Face_Left) {
+	
+	if input_any_of_keys_are_held({.A, .Left}) || k2.gamepad_button_is_held(0, .Left_Face_Left){
 		dir.x = -1
 	}
-	if k2.key_is_held(.D) || k2.key_is_held(.Right) || k2.gamepad_button_is_held(0, .Left_Face_Right) {
+
+	if input_any_of_keys_are_held({.D, .Right}) || k2.gamepad_button_is_held(0, .Left_Face_Right) {
 		dir.x = 1
 	}
 
@@ -674,6 +677,27 @@ input_temporal_return :: proc() -> bool {
 	result := k2.key_went_down(.R) || k2.gamepad_button_went_down(0, .Right_Face_Up)
 	return result
 }
+
+input_any_of_keys_are_held :: proc(keys : []k2.Keyboard_Key) -> bool {
+	for i in 0 ..<len(keys) {
+		key := keys[i]
+
+		if k2.key_is_held(key) do return true
+	}
+
+	return false
+}
+
+input_any_of_buttons_are_held :: proc(buttons : []k2.Gamepad_Button) -> bool {
+	for i in 0 ..<len(buttons) {
+		button := buttons[i]
+
+		if k2.gamepad_button_is_held(0, button) do return true
+	}
+
+	return false
+}
+
 
 shutdown :: proc() {
 	editor_destroy()
