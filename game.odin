@@ -100,14 +100,14 @@ Game_Memory :: struct {
 	sprites:                [Sprite_Name]Sprite,
 	entities:               hm.Static_Handle_Map(MAX_ENTITIES, Entity, Handle),
 	player_handle:          Handle,
-	level_timer_seconds:	f32,
+	level_timer_seconds:    f32,
 	temporal_positions:     [TEMPORAL_FRAME_BUFFER_LENGHT]v2,
 	temporal_index:         int,
 	temporal_index_highest: int,
 	temporal_counter:       f32,
-	is_game_over:			bool,
-	game_over_timer:		f32,
-	selected_tile:			Editor_Tile,
+	is_game_over:           bool,
+	game_over_timer:        f32,
+	selected_tile:          Editor_Tile,
 }
 
 g: ^Game_Memory
@@ -246,26 +246,25 @@ step :: proc() -> bool {
 			k2.present()
 
 			if g.game_over_timer > 0 {
-				g.game_over_timer -= dt;
+				g.game_over_timer -= dt
 				return true
 			}
 
 			// Wait for input to restart
 			if k2.key_went_down(.Space) ||
-			k2.gamepad_button_went_down(0, .Right_Face_Up) ||
-			k2.gamepad_button_went_down(0, .Right_Face_Down) ||
-			k2.gamepad_button_went_down(0, .Right_Face_Left) ||
-			k2.gamepad_button_went_down(0, .Right_Face_Right) ||
-			k2.gamepad_button_went_down(0, .Middle_Face_Left) ||
-			k2.gamepad_button_went_down(0, .Middle_Face_Middle) ||
-			k2.gamepad_button_went_down(0, .Middle_Face_Right) {
+			   k2.gamepad_button_went_down(0, .Right_Face_Up) ||
+			   k2.gamepad_button_went_down(0, .Right_Face_Down) ||
+			   k2.gamepad_button_went_down(0, .Right_Face_Left) ||
+			   k2.gamepad_button_went_down(0, .Right_Face_Right) ||
+			   k2.gamepad_button_went_down(0, .Middle_Face_Left) ||
+			   k2.gamepad_button_went_down(0, .Middle_Face_Middle) ||
+			   k2.gamepad_button_went_down(0, .Middle_Face_Right) {
 				init_game_state()
 			}
 
 			return true
 		}
 	}
-
 
 
 	if k2.key_went_down(.E) {
@@ -379,19 +378,7 @@ step :: proc() -> bool {
 		}
 
 		if input_temporal_return() {
-			t_index: int
-			if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
-				// NOTE: temporal buffer has or should loop
-				// NOTE: return index is temporal_index + 1 unless temporal_index is == TEMPORAL_FRAME_BUFFER_LENGHT in which case return index is 0
-				if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT {
-					t_index = 0
-				} else {
-					t_index = g.temporal_index + 1
-				}
-			} else {
-				// NOTE: temporal buffer is not full, return index is always 0
-				t_index = 0
-			}
+			t_index := get_temporal_index()
 
 			player.pos = g.temporal_positions[t_index]
 		}
@@ -580,7 +567,7 @@ step :: proc() -> bool {
 				case .Pickup:
 					pixel_pos := entity.pos * METERS_TO_PIXELS
 
-					pickup_rect := k2.Rect{
+					pickup_rect := k2.Rect {
 						x = pixel_pos.x - (f32(TILE_SIDE_IN_PIXELS) / 2),
 						y = pixel_pos.y - (f32(TILE_SIDE_IN_PIXELS) / 2),
 						w = f32(TILE_SIDE_IN_PIXELS),
@@ -611,21 +598,27 @@ step :: proc() -> bool {
 			draw_sprite(.bobr, player.pos, animation_frame, is_moving_right)
 
 			// render_temporal_ghost
-			t_index: int
-			if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
-			// NOTE: temporal buffer has or should loop
-			// NOTE: return index is temporal_index + 1 unless temporal_index is == TEMPORAL_FRAME_BUFFER_LENGHT in which case return index is 0
-				if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
-					t_index = 0
-				} else {
-					t_index = g.temporal_index + 1
-				}
-			} else {
-			// NOTE: temporal buffer is not full, return index is always 0
-				t_index = 0
-			}
+			t_index := get_temporal_index()
 
 			draw_sprite(.bobr, g.temporal_positions[t_index], animation_frame, is_moving_right, k2.LIGHT_GREEN)
+		}
+
+		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
+		entities_it := hm.iterator_make(&g.entities)
+		for entity, handle in hm.iterate(&entities_it) {
+			assert(hm.is_valid(g.entities, handle))
+			if entity.type == .Ground {
+				draw_sprite(.ground, entity.pos)
+			} else if entity.type == .Pickup {
+				pixel_pos := entity.pos * METERS_TO_PIXELS
+
+				pickup_rect := k2.Rect {
+					x = pixel_pos.x - (f32(TILE_SIDE_IN_PIXELS) / 2),
+					y = pixel_pos.y - (f32(TILE_SIDE_IN_PIXELS) / 2),
+					w = f32(TILE_SIDE_IN_PIXELS),
+					h = f32(TILE_SIDE_IN_PIXELS),
+				}
+			}
 		}
 
 
@@ -660,7 +653,7 @@ step :: proc() -> bool {
 			hundredths := int((g.level_timer_seconds - f32(seconds)) * 100)
 			countdown_text := fmt.tprintf("%02d:%02d", seconds, hundredths)
 			font_size: f32 = 24
-			text_pos := v2{ WINDOW_SIZE.x - 70, 16 }
+			text_pos := v2{WINDOW_SIZE.x - 70, 16}
 			k2.draw_text(countdown_text, text_pos, font_size, k2.WHITE)
 		}
 
@@ -672,6 +665,22 @@ step :: proc() -> bool {
 	}
 
 	return true
+}
+
+get_temporal_index :: proc() -> (t_index: int) {
+	if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+		// NOTE: temporal buffer has or should loop
+		// NOTE: return index is temporal_index + 1 unless temporal_index is == TEMPORAL_FRAME_BUFFER_LENGHT in which case return index is 0
+		if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+			t_index = 0
+		} else {
+			t_index = g.temporal_index + 1
+		}
+	} else {
+		// NOTE: temporal buffer is not full, return index is always 0
+		t_index = 0
+	}
+	return
 }
 
 draw_sprite :: proc(name: Sprite_Name, pos: v2, frame: f32 = 0, flip_x: bool = false, tint: k2.Color = k2.WHITE) {
@@ -717,7 +726,7 @@ add_tile :: proc(pos: v2) {
 		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Entry, flags = {.Static}})
 
 	case .Exit_Door:
-	// Remove existing Exit Door so there's only ever 1
+		// Remove existing Exit Door so there's only ever 1
 		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			if entity.type == .Door_Exit {
@@ -734,12 +743,11 @@ input_direction :: proc() -> v2 {
 
 	x_axis := k2.get_gamepad_axis(0, .Left_Stick_X)
 
-	if x_axis < -0.1 || x_axis > 0.1
-	{
+	if x_axis < -0.1 || x_axis > 0.1 {
 		dir.x = x_axis
 	}
 
-	if input_any_of_keys_are_held({.A, .Left}) || k2.gamepad_button_is_held(0, .Left_Face_Left){
+	if input_any_of_keys_are_held({.A, .Left}) || k2.gamepad_button_is_held(0, .Left_Face_Left) {
 		dir.x = -1
 	}
 
@@ -760,8 +768,8 @@ input_temporal_return :: proc() -> bool {
 	return result
 }
 
-input_any_of_keys_are_held :: proc(keys : []k2.Keyboard_Key) -> bool {
-	for i in 0 ..<len(keys) {
+input_any_of_keys_are_held :: proc(keys: []k2.Keyboard_Key) -> bool {
+	for i in 0 ..< len(keys) {
 		key := keys[i]
 
 		if k2.key_is_held(key) do return true
@@ -770,8 +778,8 @@ input_any_of_keys_are_held :: proc(keys : []k2.Keyboard_Key) -> bool {
 	return false
 }
 
-input_any_of_buttons_are_held :: proc(buttons : []k2.Gamepad_Button) -> bool {
-	for i in 0 ..<len(buttons) {
+input_any_of_buttons_are_held :: proc(buttons: []k2.Gamepad_Button) -> bool {
+	for i in 0 ..< len(buttons) {
 		button := buttons[i]
 
 		if k2.gamepad_button_is_held(0, button) do return true
