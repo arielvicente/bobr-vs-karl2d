@@ -561,69 +561,73 @@ step :: proc() -> bool {
 		)
 		//k2.draw_text(fmt.tprintf("%.2f", player.vel), {-128, -128}, 64, k2.WHITE)
 
-		@(static) animation_frame: f32 = 0
-		@(static) animation_timer: f32 = 0
-		animation_fps: f32 : 1.0 / 12.0 // NOTE: 12 fps
+		render_geometry: {
+			entities_it := hm.iterator_make(&g.entities)
+			for entity, handle in hm.iterate(&entities_it) {
 
-		if math.abs(player.vel.x) > 0.1 {
-			animation_timer += dt
+				assert(hm.is_valid(g.entities, handle))
+
+				#partial switch entity.type {
+				case .Ground:
+					draw_sprite(.ground, entity.pos)
+
+				case .Door_Entry:
+					draw_sprite(.door, entity.pos, tint = k2.BLUE)
+
+				case .Door_Exit:
+					draw_sprite(.door, entity.pos, tint = k2.MAGENTA)
+
+				case .Pickup:
+					pixel_pos := entity.pos * METERS_TO_PIXELS
+
+					pickup_rect := k2.Rect{
+						x = pixel_pos.x - (f32(TILE_SIDE_IN_PIXELS) / 2),
+						y = pixel_pos.y - (f32(TILE_SIDE_IN_PIXELS) / 2),
+						w = f32(TILE_SIDE_IN_PIXELS),
+						h = f32(TILE_SIDE_IN_PIXELS),
+					}
+
+					k2.draw_rect(pickup_rect, k2.GREEN)
+				}
+			}
 		}
-		if animation_timer >= animation_fps {
-			animation_timer = 0
 
-			animation_frame += 1
-			if animation_frame >= g.sprites[.bobr].frames do animation_frame = 0
-		}
+		render_player: {
+			@(static) animation_frame: f32 = 0
+			@(static) animation_timer: f32 = 0
+			animation_fps: f32 : 1.0 / 12.0 // NOTE: 12 fps
 
-		is_moving_right := player.vel.x > 0
-		draw_sprite(.bobr, player.pos, animation_frame, is_moving_right)
+			if math.abs(player.vel.x) > 0.1 {
+				animation_timer += dt
+			}
+			if animation_timer >= animation_fps {
+				animation_timer = 0
 
-		t_index: int
-		if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+				animation_frame += 1
+				if animation_frame >= g.sprites[.bobr].frames do animation_frame = 0
+			}
+
+			is_moving_right := player.vel.x > 0
+			draw_sprite(.bobr, player.pos, animation_frame, is_moving_right)
+
+			// render_temporal_ghost
+			t_index: int
+			if g.temporal_index_highest == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
 			// NOTE: temporal buffer has or should loop
 			// NOTE: return index is temporal_index + 1 unless temporal_index is == TEMPORAL_FRAME_BUFFER_LENGHT in which case return index is 0
-			if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
-				t_index = 0
-			} else {
-				t_index = g.temporal_index + 1
-			}
-		} else {
-			// NOTE: temporal buffer is not full, return index is always 0
-			t_index = 0
-		}
-
-		draw_sprite(.bobr, g.temporal_positions[t_index], animation_frame, is_moving_right, k2.LIGHT_GREEN)
-
-		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
-		entities_it := hm.iterator_make(&g.entities)
-		for entity, handle in hm.iterate(&entities_it) {
-
-			assert(hm.is_valid(g.entities, handle))
-
-			#partial switch entity.type {
-			case .Ground:
-				draw_sprite(.ground, entity.pos)
-
-			case .Door_Entry:
-				draw_sprite(.door, entity.pos, tint = k2.BLUE)
-
-			case .Door_Exit:
-				draw_sprite(.door, entity.pos, tint = k2.MAGENTA)
-
-			case .Pickup:
-				pixel_pos := entity.pos * METERS_TO_PIXELS
-
-				pickup_rect := k2.Rect{
-					x = pixel_pos.x - (f32(TILE_SIDE_IN_PIXELS) / 2),
-					y = pixel_pos.y - (f32(TILE_SIDE_IN_PIXELS) / 2),
-					w = f32(TILE_SIDE_IN_PIXELS),
-					h = f32(TILE_SIDE_IN_PIXELS),
+				if g.temporal_index == TEMPORAL_FRAME_BUFFER_LENGHT - 1 {
+					t_index = 0
+				} else {
+					t_index = g.temporal_index + 1
 				}
-
-				k2.draw_rect(pickup_rect, k2.GREEN)
+			} else {
+			// NOTE: temporal buffer is not full, return index is always 0
+				t_index = 0
 			}
 
+			draw_sprite(.bobr, g.temporal_positions[t_index], animation_frame, is_moving_right, k2.LIGHT_GREEN)
 		}
+
 
 		if edit_mode {
 			preview_pos := get_snapped_mouse_pos()
