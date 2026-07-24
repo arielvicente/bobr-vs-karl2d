@@ -379,7 +379,6 @@ step :: proc() -> bool {
 
 		if input_temporal_return() {
 			t_index := get_temporal_index()
-
 			player.pos = g.temporal_positions[t_index]
 		}
 	}
@@ -599,7 +598,6 @@ step :: proc() -> bool {
 
 			// render_temporal_ghost
 			t_index := get_temporal_index()
-
 			draw_sprite(.bobr, g.temporal_positions[t_index], animation_frame, is_moving_right, k2.LIGHT_GREEN)
 		}
 
