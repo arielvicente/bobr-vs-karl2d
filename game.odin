@@ -5,6 +5,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:math/rand"
 import "core:mem"
 import "core:os"
 import k2 "karl2d"
@@ -37,8 +38,6 @@ Sprite :: struct {
 	w, h:   f32,
 	frames: f32,
 }
-
-sprites: [Sprite_Name]Sprite
 
 E_Type :: enum {
 	None,
@@ -78,16 +77,17 @@ E_State :: union {
 }
 
 Entity :: struct {
-	handle:      Handle,
-	type:        E_Type,
-	flags:       bit_set[E_Flag],
-	state:       E_State,
-	pos:         v2,
-	vel:         v2,
-	speed:       f32,
-	is_grounded: bool,
-	used_jumps:  int,
-	max_jumps:   int,
+	handle:          Handle,
+	type:            E_Type,
+	flags:           bit_set[E_Flag],
+	state:           E_State,
+	pos:             v2,
+	vel:             v2,
+	speed:           f32,
+	is_grounded:     bool,
+	used_jumps:      int,
+	max_jumps:       int,
+	animation_frame: int,
 }
 
 MAX_ENTITIES :: 256
@@ -165,7 +165,7 @@ init_sprite_data :: proc() {
 	g.sprites[.ground].tex = k2.load_texture_from_bytes(#load("data/sprites/ground.png"))
 	g.sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
-	g.sprites[.ground].frames = 1
+	g.sprites[.ground].frames = 2
 	g.sprites[.door].tex = k2.load_texture_from_bytes(#load("data/sprites/door.png"))
 	g.sprites[.door].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.door].h = f32(TILE_SIDE_IN_PIXELS * 2)
@@ -192,15 +192,24 @@ init_game_state :: proc() {
 		fmt.print("level failed to load:", LEVEL_1_PATH)
 	}
 
-	start_pos : v2
-	for e in level_entities {
+	start_pos: v2
+	for &e in level_entities {
+		if e.type == .Ground {
+			e.animation_frame = rand.int_range(0, int(g.sprites[.ground].frames))
+		}
 		_ = hm.add(&g.entities, e)
 		if e.type == .Door_Entry {
 			start_pos = e.pos
 		}
 	}
 
-	player := Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}, pos = start_pos}
+	player := Entity {
+		type  = .Player,
+		flags = {.Dynamic},
+		speed = 5,
+		state = E_Airborne{},
+		pos   = start_pos,
+	}
 	g.player_handle = hm.add(&g.entities, player)
 }
 
@@ -556,12 +565,12 @@ step :: proc() -> bool {
 		render_geometry: {
 			entities_it := hm.iterator_make(&g.entities)
 			for entity, handle in hm.iterate(&entities_it) {
-
 				assert(hm.is_valid(g.entities, handle))
 
 				#partial switch entity.type {
 				case .Ground:
-					draw_sprite(.ground, entity.pos)
+					fmt.print(entity.animation_frame)
+					draw_sprite(.ground, entity.pos, f32(entity.animation_frame))
 
 				case .Door_Entry:
 					draw_sprite(.door, entity.pos, tint = k2.BLUE)
@@ -606,25 +615,6 @@ step :: proc() -> bool {
 			t_index := get_temporal_index()
 			draw_sprite(.bobr, g.temporal_positions[t_index], animation_frame, is_moving_right, k2.LIGHT_GREEN)
 		}
-
-		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
-		entities_it := hm.iterator_make(&g.entities)
-		for entity, handle in hm.iterate(&entities_it) {
-			assert(hm.is_valid(g.entities, handle))
-			if entity.type == .Ground {
-				draw_sprite(.ground, entity.pos)
-			} else if entity.type == .Pickup {
-				pixel_pos := entity.pos * METERS_TO_PIXELS
-
-				pickup_rect := k2.Rect {
-					x = pixel_pos.x - (f32(TILE_SIDE_IN_PIXELS) / 2),
-					y = pixel_pos.y - (f32(TILE_SIDE_IN_PIXELS) / 2),
-					w = f32(TILE_SIDE_IN_PIXELS),
-					h = f32(TILE_SIDE_IN_PIXELS),
-				}
-			}
-		}
-
 
 		if edit_mode {
 			preview_pos := get_snapped_mouse_pos()
