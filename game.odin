@@ -60,6 +60,7 @@ E_Flag :: enum u16 {
 	Dynamic,
 	Static,
 	Pickup,
+	Static_NoCol,
 }
 
 COYOTE_TIME_FRAMES: u8 : 5
@@ -182,8 +183,6 @@ init_game_state :: proc() {
 
 	hm.clear(&g.entities)
 
-	g.player_handle = hm.add(&g.entities, Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}})
-
 	_ = hm.add(&g.entities, Entity{type = .Pickup, flags = {.Pickup}, pos = {3, -2}})
 
 	level_1_data := #load(LEVEL_1_PATH)
@@ -193,9 +192,16 @@ init_game_state :: proc() {
 		fmt.print("level failed to load:", LEVEL_1_PATH)
 	}
 
+	start_pos : v2
 	for e in level_entities {
 		_ = hm.add(&g.entities, e)
+		if e.type == .Door_Entry {
+			start_pos = e.pos
+		}
 	}
+
+	player := Entity{type = .Player, flags = {.Dynamic}, speed = 5, state = E_Airborne{}, pos = start_pos}
+	g.player_handle = hm.add(&g.entities, player)
 }
 
 editor_save_entities_to_file :: proc(level_name: string) {
@@ -721,10 +727,9 @@ add_tile :: proc(pos: v2) {
 				break
 			}
 		}
-		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Entry, flags = {.Static}})
+		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Entry, flags = {.Static_NoCol}})
 
 	case .Exit_Door:
-		// Remove existing Exit Door so there's only ever 1
 		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
 			if entity.type == .Door_Exit {
@@ -732,7 +737,7 @@ add_tile :: proc(pos: v2) {
 				break
 			}
 		}
-		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Exit, flags = {.Static}})
+		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Exit, flags = {.Static_NoCol}})
 	}
 }
 
