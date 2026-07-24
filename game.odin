@@ -29,6 +29,7 @@ Sprite_Name :: enum u32 {
 	none,
 	bobr,
 	ground,
+	door,
 }
 
 Sprite :: struct {
@@ -44,6 +45,14 @@ E_Type :: enum {
 	Player,
 	Ground,
 	Pickup,
+	Door_Entry,
+	Door_Exit,
+}
+
+Editor_Tile :: enum {
+	Ground,
+	Entry_Door,
+	Exit_Door,
 }
 
 E_Flag :: enum u16 {
@@ -98,6 +107,7 @@ Game_Memory :: struct {
 	temporal_counter:       f32,
 	is_game_over:			bool,
 	game_over_timer:		f32,
+	selected_tile:			Editor_Tile,
 }
 
 g: ^Game_Memory
@@ -138,6 +148,15 @@ init :: proc() {
 
 	particles.init(k2.draw_circle)
 
+	init_sprite_data()
+	init_game_state()
+
+	camera = k2.Camera {
+		zoom = CAMERA_ZOOM,
+	}
+}
+
+init_sprite_data :: proc() {
 	g.sprites[.bobr].tex = k2.load_texture_from_bytes(#load("data/sprites/bobr.png"))
 	g.sprites[.bobr].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.bobr].h = f32(TILE_SIDE_IN_PIXELS)
@@ -146,12 +165,10 @@ init :: proc() {
 	g.sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].frames = 1
-
-	init_game_state()
-
-	camera = k2.Camera {
-		zoom = CAMERA_ZOOM,
-	}
+	g.sprites[.door].tex = k2.load_texture_from_bytes(#load("data/sprites/door.png"))
+	g.sprites[.door].w = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.door].h = f32(TILE_SIDE_IN_PIXELS * 2)
+	g.sprites[.door].frames = 1
 }
 
 init_game_state :: proc() {
@@ -307,11 +324,11 @@ step :: proc() -> bool {
 	}
 
 	input: {
-		if edit_mode {
-			editor_input()
-		}
 
 		if edit_mode {
+
+			editor_input()
+
 			if k2.mouse_button_is_held(.Right) {
 				editor_camera_target -= k2.get_mouse_delta()
 			}
@@ -337,11 +354,8 @@ step :: proc() -> bool {
 						}
 					}
 				} else {
-					pos := camera.target * PIXELS_TO_METERS
-					pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
-					pos.x = math.floor(pos.x + 0.5)
-					pos.y = math.floor(pos.y + 0.5)
-					_ = hm.add(&g.entities, Entity{pos = pos, type = .Ground, flags = {.Static}})
+					pos := get_snapped_mouse_pos()
+					add_tile(pos)
 				}
 			}
 			if k2.key_went_down(.S) {
@@ -583,11 +597,20 @@ step :: proc() -> bool {
 		ground_r := k2.get_texture_rect(g.sprites[.ground].tex)
 		entities_it := hm.iterator_make(&g.entities)
 		for entity, handle in hm.iterate(&entities_it) {
+
 			assert(hm.is_valid(g.entities, handle))
-			if entity.type == .Ground {
+
+			#partial switch entity.type {
+			case .Ground:
 				draw_sprite(.ground, entity.pos)
-			}
-			else if entity.type == .Pickup {
+
+			case .Door_Entry:
+				draw_sprite(.door, entity.pos, tint = k2.BLUE)
+
+			case .Door_Exit:
+				draw_sprite(.door, entity.pos, tint = k2.MAGENTA)
+
+			case .Pickup:
 				pixel_pos := entity.pos * METERS_TO_PIXELS
 
 				pickup_rect := k2.Rect{
@@ -598,15 +621,30 @@ step :: proc() -> bool {
 				}
 
 				k2.draw_rect(pickup_rect, k2.GREEN)
-
 			}
+
 		}
 
 		if edit_mode {
 			preview_pos := get_snapped_mouse_pos()
-			preview_color := k2.WHITE
-			preview_color.a = 128
-			draw_sprite(.ground, preview_pos, 0, false, preview_color)
+
+			preview_sprite: Sprite_Name
+			tint_color: k2.Color
+
+			switch g.selected_tile {
+			case .Ground:
+				preview_sprite = .ground
+				tint_color = k2.WHITE
+			case .Entry_Door:
+				preview_sprite = .door
+				tint_color = k2.BLUE
+			case .Exit_Door:
+				preview_sprite = .door
+				tint_color = k2.MAGENTA
+			}
+
+			tint_color.a = 128
+			draw_sprite(preview_sprite, preview_pos, 0, false, tint_color)
 		}
 
 		particles.update(dt)
@@ -657,6 +695,34 @@ get_snapped_mouse_pos :: proc() -> v2 {
 	pos.x = math.floor(pos.x + 0.5)
 	pos.y = math.floor(pos.y + 0.5)
 	return pos
+}
+
+add_tile :: proc(pos: v2) {
+	switch g.selected_tile {
+	case .Ground:
+		_ = hm.add(&g.entities, Entity{pos = pos, type = .Ground, flags = {.Static}})
+
+	case .Entry_Door:
+		entities_it := hm.iterator_make(&g.entities)
+		for entity, handle in hm.iterate(&entities_it) {
+			if entity.type == .Door_Entry {
+				hm.remove(&g.entities, handle)
+				break
+			}
+		}
+		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Entry, flags = {.Static}})
+
+	case .Exit_Door:
+	// Remove existing Exit Door so there's only ever 1
+		entities_it := hm.iterator_make(&g.entities)
+		for entity, handle in hm.iterate(&entities_it) {
+			if entity.type == .Door_Exit {
+				hm.remove(&g.entities, handle)
+				break
+			}
+		}
+		_ = hm.add(&g.entities, Entity{pos = pos, type = .Door_Exit, flags = {.Static}})
+	}
 }
 
 input_direction :: proc() -> v2 {

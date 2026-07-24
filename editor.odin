@@ -162,6 +162,13 @@ editor_input :: proc() {
 	if k2.mouse_button_went_up(.Right) {
 		mu.input_mouse_up(mu_ctx, i32(mouse_pos.x), i32(mouse_pos.y), .RIGHT)
 	}
+
+	scroll := k2.get_mouse_wheel_delta()
+	if scroll > 0 {
+		g.selected_tile = Editor_Tile((int(g.selected_tile) + 1) % len(Editor_Tile))
+	} else if scroll < 0 {
+		g.selected_tile = Editor_Tile((int(g.selected_tile) - 1 + len(Editor_Tile)) % len(Editor_Tile))
+	}
 }
 
 editor_render :: proc() {
