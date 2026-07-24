@@ -317,10 +317,7 @@ step :: proc() -> bool {
 			}
 			if k2.mouse_button_went_down(.Left) {
 				if k2.key_is_held(.D) {
-					pos := camera.target * PIXELS_TO_METERS
-					pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
-					pos.x = math.floor(pos.x + 0.5)
-					pos.y = math.floor(pos.y + 0.5)
+					pos := get_snapped_mouse_pos()
 
 					entities_it := hm.iterator_make(&g.entities)
 					remove_check: for entity, handle in hm.iterate(&entities_it) {
@@ -625,6 +622,19 @@ step :: proc() -> bool {
 			}
 		}
 
+		if edit_mode {
+			preview_pos := get_snapped_mouse_pos()
+
+			preview_color := k2.WHITE
+			preview_color.a = 128
+			tex := g.sprites[.ground].tex
+			pos := preview_pos * METERS_TO_PIXELS
+			origin := half_side * METERS_TO_PIXELS
+
+			ground_r := k2.get_texture_rect(tex)
+			k2.draw_texture_rect(tex, ground_r, pos, origin, 0, preview_color)
+		}
+
 		particles.update(dt)
 
 		k2.set_camera(nil)
@@ -646,6 +656,14 @@ step :: proc() -> bool {
 	}
 
 	return true
+}
+
+get_snapped_mouse_pos :: proc() -> v2 {
+	pos := camera.target * PIXELS_TO_METERS
+	pos += (k2.get_mouse_position() / 2) * PIXELS_TO_METERS
+	pos.x = math.floor(pos.x + 0.5)
+	pos.y = math.floor(pos.y + 0.5)
+	return pos
 }
 
 input_direction :: proc() -> v2 {
