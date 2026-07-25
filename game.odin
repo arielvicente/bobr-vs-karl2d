@@ -31,6 +31,7 @@ Sprite_Name :: enum u32 {
 	bobr,
 	ground,
 	door,
+	time_pickup,
 }
 
 Sprite :: struct {
@@ -170,6 +171,10 @@ init_sprite_data :: proc() {
 	g.sprites[.door].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.door].h = f32(TILE_SIDE_IN_PIXELS * 2)
 	g.sprites[.door].frames = 1
+	g.sprites[.time_pickup].tex = k2.load_texture_from_bytes(#load("data/sprites/time_pickup.png"))
+	g.sprites[.time_pickup].w = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.time_pickup].h = f32(TILE_SIDE_IN_PIXELS)
+	g.sprites[.time_pickup].frames = 1
 }
 
 init_game_state :: proc() {
@@ -378,6 +383,7 @@ step :: proc() -> bool {
 		}
 
 		JUMP_FORCE: f32 : 20
+		DASH_FORCE: f32 : 50
 		AIR_TURN_MODIFIER: f32 : 0.75
 		if player.is_grounded {
 			player.vel += input_direction()
@@ -390,6 +396,11 @@ step :: proc() -> bool {
 				player.used_jumps += 1
 				particles.spawn_particle_ring(player.pos * METERS_TO_PIXELS)
 			}
+		}
+		if input_dash() {
+			direction_sign := math.sign(player.vel.x)
+			player.vel.x += JUMP_FORCE * direction_sign
+			particles.spawn_particle_ring(player.pos * METERS_TO_PIXELS)
 		}
 
 		if input_temporal_return() {
@@ -587,7 +598,7 @@ step :: proc() -> bool {
 						h = f32(TILE_SIDE_IN_PIXELS),
 					}
 
-					k2.draw_rect(pickup_rect, k2.GREEN)
+					draw_sprite(.time_pickup, entity.pos)
 				}
 			}
 		}
@@ -752,6 +763,11 @@ input_direction :: proc() -> v2 {
 
 input_jump :: proc() -> bool {
 	result := k2.key_went_down(.Space) || k2.gamepad_button_went_down(0, .Right_Face_Down)
+	return result
+}
+
+input_dash :: proc() -> bool {
+	result := k2.key_went_down(.Left_Shift) || k2.gamepad_button_went_down(0, .Right_Face_Left)
 	return result
 }
 
