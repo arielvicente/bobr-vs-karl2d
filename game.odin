@@ -165,7 +165,7 @@ init_sprite_data :: proc() {
 	g.sprites[.ground].tex = k2.load_texture_from_bytes(#load("data/sprites/ground.png"))
 	g.sprites[.ground].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.ground].h = f32(TILE_SIDE_IN_PIXELS)
-	g.sprites[.ground].frames = 2
+	g.sprites[.ground].frames = 4
 	g.sprites[.door].tex = k2.load_texture_from_bytes(#load("data/sprites/door.png"))
 	g.sprites[.door].w = f32(TILE_SIDE_IN_PIXELS)
 	g.sprites[.door].h = f32(TILE_SIDE_IN_PIXELS * 2)
@@ -569,7 +569,6 @@ step :: proc() -> bool {
 
 				#partial switch entity.type {
 				case .Ground:
-					fmt.print(entity.animation_frame)
 					draw_sprite(.ground, entity.pos, f32(entity.animation_frame))
 
 				case .Door_Entry:
